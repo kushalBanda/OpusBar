@@ -60,3 +60,14 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots/**/*.png
 fastlane/test_output
+
+
+# docs
+docs/resources/
+docs/dev/
+docs/notes/
+docs/plans/
+.claude/
+.codegraph/
+skills-locks.json
+/build/
