@@ -69,5 +69,5 @@ docs/notes/
 docs/plans/
 .claude/
 .codegraph/
-skills-locks.json
+skills-lock.json
 /build/

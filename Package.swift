@@ -1,0 +1,26 @@
+// swift-tools-version:5.10
+import PackageDescription
+
+let strict: [SwiftSetting] = [.enableExperimentalFeature("StrictConcurrency")]
+
+let package = Package(
+    name: "OpusBar",
+    platforms: [.macOS(.v14)],
+    products: [
+        .executable(name: "OpusBar", targets: ["OpusBar"]),
+        .executable(name: "opusbar-hook", targets: ["opusbar-hook"]),
+    ],
+    targets: [
+        // Shared by the hook binary and the app: wire format, socket client, paths.
+        .target(name: "OpusBarWire", swiftSettings: strict),
+        .executableTarget(name: "opusbar-hook", dependencies: ["OpusBarWire"], swiftSettings: strict),
+        .target(name: "OpusBarCore", dependencies: ["OpusBarWire"], swiftSettings: strict),
+        .executableTarget(
+            name: "OpusBar",
+            dependencies: ["OpusBarCore", "OpusBarWire"],
+            resources: [.copy("Resources/oneko-classic.png"), .copy("Resources/CREDITS.md")]
+        ),
+        .testTarget(name: "OpusBarWireTests", dependencies: ["OpusBarWire"]),
+        .testTarget(name: "OpusBarCoreTests", dependencies: ["OpusBarCore", "OpusBarWire"]),
+    ]
+)
