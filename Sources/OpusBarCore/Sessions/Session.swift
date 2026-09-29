@@ -7,6 +7,13 @@ public struct Session: Identifiable, Equatable, Sendable {
     public var cwd: String
     public var projectName: String
     public var branch: String?
+    /// The agent's own name for the session (Claude: `quant-8d`), when it has one. Tells apart
+    /// several sessions in one folder.
+    public var title: String?
+    /// The app and tty the session runs in, from its parent processes.
+    public var host: SessionHost?
+    /// When the current turn began (the prompt was sent); nil between turns.
+    public var turnStartedAt: Date?
     public var state: SessionState
     /// Short context for the row: "Edit", "Allow Bash?", "API error".
     public var detail: String?

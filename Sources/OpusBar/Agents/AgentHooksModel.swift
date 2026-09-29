@@ -32,6 +32,9 @@ final class AgentHooksModel {
 
     func rows(for agent: AgentKind) -> [Row] { rows.filter { $0.target.agent == agent } }
 
+    /// Agents with at least one connected hooks file.
+    var connectedAgents: Set<AgentKind> { Set(rows.filter { $0.status == .installed }.map(\.target.agent)) }
+
     /// At least one hooks file has OpusBar installed.
     var anyConnected: Bool { rows.contains { $0.status == .installed } }
     /// At least one agent is present and could be connected.
@@ -70,6 +73,33 @@ final class AgentHooksModel {
         defaults.set(folders, forKey: ClaudeProfiles.userDefaultsKey)
         refresh()
     }
+
+    /// pi/OMP session folders the user added, so discovery finds sessions kept outside the defaults.
+    func piFamilyFolders(for agent: AgentKind) -> [String] { PiFamilyFolders.folders(for: agent, defaults: defaults) }
+
+    func addPiFamilyFolder(for agent: AgentKind) {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.showsHiddenFiles = true
+        panel.directoryURL = ClaudeConfigPaths.homeDirectory(environment: environment)
+        panel.message = "Choose the folder where \(agent.displayName) keeps its session files."
+        panel.prompt = "Add Folder"
+        NSApp.activate(ignoringOtherApps: true)
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var folders = piFamilyFolders(for: agent)
+        if !folders.contains(url.path) { folders.append(url.path) }
+        defaults.set(folders, forKey: PiFamilyFolders.key(for: agent))
+        folderRevision += 1
+    }
+
+    func removePiFamilyFolder(_ path: String, for agent: AgentKind) {
+        defaults.set(piFamilyFolders(for: agent).filter { $0 != path }, forKey: PiFamilyFolders.key(for: agent))
+        folderRevision += 1
+    }
+
+    /// Bumped when pi/OMP folders change, so the pane re-reads them.
+    private(set) var folderRevision = 0
 
     func removeClaudeFolder(_ target: HookTarget) {
         defaults.set(userAddedFolders.filter { URL(fileURLWithPath: $0).standardizedFileURL != target.root },

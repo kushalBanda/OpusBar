@@ -196,3 +196,80 @@ final class AcknowledgeDoneTests: XCTestCase {
         XCTAssertEqual(store.aggregate.state, .idle)
     }
 }
+
+final class HookActivityTests: XCTestCase {
+    @MainActor
+    func testRecordsLastEventPerAgent() {
+        var clock = Date(timeIntervalSince1970: 1_000)
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        XCTAssertTrue(store.hookActivity.isEmpty)
+        store.apply(WireEvent(ts: 1, e: SlimEvent(sessionId: "c", event: .userPromptSubmit, cwd: "/p")))
+        clock = clock.addingTimeInterval(5)
+        store.apply(WireEvent(ts: 2, e: SlimEvent(sessionId: "c", event: .preToolUse, cwd: "/p", toolName: "Bash")))
+        store.apply(WireEvent(ts: 3, agent: .codex, e: SlimEvent(sessionId: "x", event: .stop, cwd: "/p")))
+        XCTAssertEqual(store.hookActivity[.claude], SessionStore.HookActivity(lastEventAt: clock, lastEvent: .preToolUse, count: 2))
+        XCTAssertEqual(store.hookActivity[.codex]?.count, 1)
+        XCTAssertNil(store.hookActivity[.pi])
+    }
+}
+
+final class TurnAccuracyTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_000)
+
+    private func event(_ name: HookEventName, _ ts: Int64, tool: String? = nil) -> WireEvent {
+        WireEvent(ts: ts, pid: 7, e: SlimEvent(sessionId: "s", event: name, cwd: "/p", toolName: tool))
+    }
+
+    private func found(status: SessionRecord.LiveStatus, at: Date) -> DiscoveredProcess {
+        DiscoveredProcess(pid: 7, agent: .claude, cwd: "/p", startedAt: nil,
+                          record: SessionRecord(id: "s", agent: .claude, cwd: "/p", modifiedAt: at, path: "/r",
+                                                status: status, statusAt: at))
+    }
+
+    @MainActor
+    func testTurnStartSurvivesToolCallsAndClearsOnStop() {
+        var clock = t0
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        store.apply(event(.userPromptSubmit, 1))
+        clock = t0.addingTimeInterval(20)
+        store.apply(event(.preToolUse, 2, tool: "Bash"))
+        clock = t0.addingTimeInterval(25)
+        store.apply(event(.postToolUse, 3, tool: "Bash"))
+        XCTAssertEqual(store.sessions.first?.turnStartedAt, t0)
+        XCTAssertEqual(store.sessions.first?.stateSince, clock)
+        store.apply(event(.stop, 4))
+        XCTAssertNil(store.sessions.first?.turnStartedAt)
+    }
+
+    @MainActor
+    func testInterruptedTurnReturnsToIdle() {
+        var clock = t0
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        store.apply(event(.userPromptSubmit, 1))
+        store.apply(event(.preToolUse, 2, tool: "Bash"))
+        clock = t0.addingTimeInterval(60)
+        store.applyDiscovery([found(status: .idle, at: t0.addingTimeInterval(30))])
+        XCTAssertEqual(store.sessions.first?.state, .idle)
+        XCTAssertNil(store.sessions.first?.turnStartedAt)
+    }
+
+    @MainActor
+    func testStaleIdleStatusDoesNotOverrideNewerHookEvents() {
+        var clock = t0
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        clock = t0.addingTimeInterval(30)
+        store.apply(event(.userPromptSubmit, 1))
+        store.applyDiscovery([found(status: .idle, at: t0.addingTimeInterval(10))])
+        XCTAssertEqual(store.sessions.first?.state, .thinking)
+    }
+
+    @MainActor
+    func testNeedsYouIsNeverClearedByStatus() {
+        var clock = t0
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        store.apply(event(.permissionRequest, 1, tool: "Bash"))
+        clock = t0.addingTimeInterval(60)
+        store.applyDiscovery([found(status: .idle, at: t0.addingTimeInterval(30))])
+        XCTAssertEqual(store.sessions.first?.state, .needsAttention)
+    }
+}

@@ -28,7 +28,12 @@ cp "$BIN/OpusBar" "$APP/Contents/MacOS/OpusBar"
 cp "$BIN/opusbar-hook" "$APP/Contents/Helpers/opusbar-hook"
 # Flat copies so Bundle.main finds them; the SwiftPM resource bundle is only for `swift run`.
 cp Sources/OpusBar/Resources/oneko-classic.png Sources/OpusBar/Resources/CREDITS.md \
-   Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt "$APP/Contents/Resources/"
+   Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt \
+   Sources/OpusBar/Resources/PixelifySans.ttf Sources/OpusBar/Resources/PixelifySans-LICENSE.txt "$APP/Contents/Resources/"
+
+# App icon (also shown on notifications): original pixel cat, rendered from scripts/make-icon.swift.
+swift scripts/make-icon.swift "$ROOT/build/icon" >/dev/null
+cp "$ROOT/build/icon/OpusBar.icns" "$APP/Contents/Resources/OpusBar.icns"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -39,6 +44,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>OpusBar</string>
   <key>CFBundleDisplayName</key><string>OpusBar</string>
   <key>CFBundleExecutable</key><string>OpusBar</string>
+  <key>CFBundleIconFile</key><string>OpusBar</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$BUILD_NUMBER</string>

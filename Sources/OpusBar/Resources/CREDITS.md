@@ -11,3 +11,6 @@ Layout: 256 x 128 PNG, 8 x 4 grid of 32 px frames (oneko.js layout).
 
 `InterVariable.ttf`: Inter 4.1 by Rasmus Andersson and the Inter Project Authors
 (https://github.com/rsms/inter), SIL Open Font License 1.1. Full license in `Inter-LICENSE.txt`.
+
+`PixelifySans.ttf`: Pixelify Sans by the Pixelify Sans Project Authors
+(https://github.com/eifetx/Pixelify-Sans), SIL Open Font License 1.1. Full license in `PixelifySans-LICENSE.txt`.

@@ -48,18 +48,30 @@ struct SettingsView: View {
     let hooks: AgentHooksModel
     let launchAtLogin: LaunchAtLogin
     let notifier: SessionNotifier
+    let store: SessionStore
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            ScrollView {
-                pane
-                    .id(navigation.pane)
-                    .transition(.opacity)
-                    .padding(28)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    pane
+                        .id(navigation.pane)
+                        .transition(.opacity)
+                        .padding(28)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                #if DEBUG
+                // `--scroll <anchor id>` scrolls to that view on open, for screenshots.
+                .onAppear {
+                    let args = ProcessInfo.processInfo.arguments
+                    if let i = args.firstIndex(of: "--scroll"), i + 1 < args.count {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { proxy.scrollTo(args[i + 1], anchor: .bottom) }
+                    }
+                }
+                #endif
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: navigation.pane)
         }
@@ -104,7 +116,7 @@ struct SettingsView: View {
     private var pane: some View {
         switch navigation.pane {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
-        case .agents: AgentsSettingsView(model: hooks)
+        case .agents: AgentsSettingsView(model: hooks, store: store)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier)
         case .about: AboutPane()
         }
@@ -170,7 +182,11 @@ struct GeneralPane: View {
                         CatView(state: .idle, points: 64)
                             .frame(width: 88, height: 88)
                             .background(RoundedRectangle(cornerRadius: 20).fill(Theme.tileLight.opacity(0.5)))
-                        TileHeading(title: "Your cat", subtitle: "It lives in the menu bar and in every session card.", large: true)
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Meow!").font(Theme.playful(34))
+                            Text("It lives in the menu bar and in every session card.")
+                                .font(Theme.font(12, .regular)).opacity(0.72).fixedSize(horizontal: false, vertical: true)
+                        }
                     }
                     Spacer(minLength: 12)
                     CatLegend()

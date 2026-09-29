@@ -9,6 +9,9 @@ final class StatusItemController: NSObject {
     static let activityWindow: TimeInterval = 30
     /// Menu bar frames never tick faster than this; each tick costs a status bar redraw.
     static let minFrameInterval: TimeInterval = 0.25
+    /// Menu bar cat size. 20 pt (40 px on Retina from the 32 px frame) reads better than the 1:1 16 pt;
+    /// nearest-neighbor keeps the pixels hard-edged.
+    static let catPoints: CGFloat = 20
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
@@ -17,6 +20,7 @@ final class StatusItemController: NSObject {
     private let onOpen: () -> Void
     private let settings: SettingsWindowController
     private let preferences: Preferences
+    private let layout = PopoverLayout()
     /// Local key monitor, installed only while the popover is open, so Esc closes it.
     private var escMonitor: Any?
 
@@ -39,7 +43,7 @@ final class StatusItemController: NSObject {
         popover.behavior = .transient // closes on any click outside
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks) { [weak self] pane in
+        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks, layout: layout) { [weak self] pane in
             self?.popover.performClose(nil)
             self?.settings.show(pane)
         })
@@ -119,15 +123,14 @@ final class StatusItemController: NSObject {
             button.setAccessibilityLabel(accessibilityLabel)
             return
         }
-        let size = NSSize(width: badge == nil ? 18 : 25, height: 18)
+        let size = NSSize(width: badge == nil ? Self.catPoints + 2 : Self.catPoints + 9, height: Self.catPoints + 2)
 
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
             context.interpolationQuality = .none
             if let cat {
                 context.setAlpha(dimmed ? 0.5 : 1)
-                // 16 pt = the 32 px frame 1:1 on Retina.
-                context.draw(cat, in: CGRect(x: 1, y: 1, width: 16, height: 16))
+                context.draw(cat, in: CGRect(x: 1, y: 1, width: Self.catPoints, height: Self.catPoints))
                 context.setAlpha(1)
             }
             if let badge {
@@ -178,6 +181,7 @@ final class StatusItemController: NSObject {
         } else {
             // Accessory apps are never active on their own; without this the popover can't take Esc.
             onOpen()
+            if let screen = sender.window?.screen ?? NSScreen.main { layout.screenHeight = screen.visibleFrame.height }
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()

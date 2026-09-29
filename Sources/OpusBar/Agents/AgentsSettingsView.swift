@@ -8,6 +8,7 @@ import SwiftUI
 @MainActor
 struct AgentsSettingsView: View {
     @Bindable var model: AgentHooksModel
+    let store: SessionStore
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -27,11 +28,7 @@ struct AgentsSettingsView: View {
             if let error = model.lastError {
                 Text(error).font(Theme.font(12, .regular)).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true)
             }
-            Tile {
-                TileHeading(title: "pi and OMP",
-                            subtitle: "Running sessions show up automatically. Live states for them come in a later update.")
-            }
-            .padding(.top, 12)
+            PiFamilyFoldersTile(model: model).padding(.top, 12).id("piFamily")
             Text("If OpusBar isn't running, the hook exits instantly and your agent carries on as normal.")
                 .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 8)
         }
@@ -49,9 +46,44 @@ struct AgentsSettingsView: View {
                         .font(Theme.font(12, .regular)).opacity(0.72)
                 }
             }
-            ForEach(rows) { TargetTile(row: $0, model: model) }
+            ForEach(rows) { TargetTile(row: $0, model: model, activity: store.hookActivity[agent]) }
             footer()
         }
+    }
+}
+
+/// pi and OMP have no hooks yet: sessions are found running. Extra folders cover sessions kept
+/// outside the default places (for example a custom `--session-dir`).
+@MainActor
+private struct PiFamilyFoldersTile: View {
+    let model: AgentHooksModel
+
+    var body: some View {
+        let _ = model.folderRevision
+        Tile {
+            TileHeading(title: "pi and OMP",
+                        subtitle: "Running sessions show up automatically. Live states for them come in a later update. If you keep sessions somewhere else, add that folder.")
+            ForEach([AgentKind.pi, .omp], id: \.self) { agent in
+                ForEach(model.piFamilyFolders(for: agent), id: \.self) { path in
+                    HStack {
+                        Text(agent.displayName).font(Theme.font(11, .semibold)).frame(width: 36, alignment: .leading)
+                        Text(Self.tildePath(path)).font(.system(size: 11).monospaced()).lineLimit(1).truncationMode(.middle)
+                        Spacer()
+                        Button("Remove") { model.removePiFamilyFolder(path, for: agent) }.buttonStyle(.link)
+                    }
+                }
+            }
+            HStack(spacing: 8) {
+                Button("Add pi Folder…") { model.addPiFamilyFolder(for: .pi) }
+                Button("Add OMP Folder…") { model.addPiFamilyFolder(for: .omp) }
+            }
+            .padding(.top, 6)
+        }
+    }
+
+    static func tildePath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 }
 
@@ -59,6 +91,7 @@ struct AgentsSettingsView: View {
 private struct TargetTile: View {
     let row: AgentHooksModel.Row
     let model: AgentHooksModel
+    let activity: SessionStore.HookActivity?
 
     var body: some View {
         Tile(fill: fill, onColor: true) {
@@ -74,6 +107,7 @@ private struct TargetTile: View {
                         .lineLimit(1)
                         .truncationMode(.middle)
                     if case .installed = row.status {
+                        HookHealthLine(agent: row.target.agent, activity: activity).padding(.top, 4)
                         FlowPills(items: row.target.events.map(\.rawValue)).padding(.top, 6)
                     }
                 }
@@ -158,6 +192,34 @@ private struct TargetTile: View {
         } else {
             NSWorkspace.shared.activateFileViewerSelecting([row.target.fileURL])
         }
+    }
+}
+
+/// Proof the connection works: when the agent last reported in. Events carry the agent, not the
+/// profile, so every connected file of one agent shows the same line.
+private struct HookHealthLine: View {
+    let agent: AgentKind
+    let activity: SessionStore.HookActivity?
+
+    var body: some View {
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            HStack(spacing: 6) {
+                Circle().fill(activity == nil ? Theme.onColor.opacity(0.35) : Theme.onColor).frame(width: 6, height: 6)
+                Text(text(now: context.date)).font(Theme.font(11, .medium)).fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    private func text(now: Date) -> String {
+        guard let activity else {
+            let restart = "Sessions started before connecting stay without live states until restarted."
+            return agent == .codex
+                ? "No events since OpusBar started. New Codex sessions report once you approve the hooks in Codex with /hooks."
+                : "No events since OpusBar started. \(restart)"
+        }
+        let events = activity.count == 1 ? "1 event" : "\(activity.count) events"
+        return "Last event \(ElapsedFormat.short(from: activity.lastEventAt, to: now)) ago · \(activity.lastEvent.rawValue) · \(events) since launch"
     }
 }
 

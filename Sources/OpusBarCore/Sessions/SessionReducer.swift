@@ -37,9 +37,11 @@ public enum SessionReducer {
         switch e.event {
         case .sessionStart:
             session.transition(to: .idle, detail: nil, now: now)
+            session.turnStartedAt = nil
             session.subagents = 0
         case .userPromptSubmit:
             session.transition(to: .thinking, detail: nil, now: now)
+            session.turnStartedAt = now
         case .preToolUse:
             session.transition(to: .working, detail: e.toolName, now: now)
         case .postToolUse, .postToolUseFailure:
@@ -61,8 +63,10 @@ public enum SessionReducer {
         case .stop:
             session.transition(to: .done, detail: nil, now: now)
             session.subagents = 0
+            session.turnStartedAt = nil
         case .stopFailure:
             session.transition(to: .error, detail: "API error", now: now)
+            session.turnStartedAt = nil
         case .sessionEnd, .unknown:
             break
         }

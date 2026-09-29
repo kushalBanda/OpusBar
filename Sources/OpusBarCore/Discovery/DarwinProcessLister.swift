@@ -20,7 +20,7 @@ public struct DarwinProcessLister: ProcessListing {
             guard let info = Self.bsdInfo(pid: pid) else { return nil }
             let path = Self.executablePath(pid: pid) ?? ""
             return AgentProcess(pid: pid, ppid: info.ppid, startedAt: info.startedAt, executablePath: path,
-                                arguments: Self.arguments(pid: pid) ?? [])
+                                arguments: Self.arguments(pid: pid) ?? [], tty: info.tty)
         }
     }
 
@@ -42,12 +42,19 @@ public struct DarwinProcessLister: ProcessListing {
         return count > 0 ? pids.prefix(Int(count)).filter { $0 > 0 } : []
     }
 
-    static func bsdInfo(pid: Int32) -> (ppid: Int32, startedAt: Date)? {
+    static func bsdInfo(pid: Int32) -> (ppid: Int32, startedAt: Date, tty: String?)? {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
         let start = TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000
-        return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: start))
+        return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: start), ttyName(info.e_tdev))
+    }
+
+    /// `e_tdev` is NODEV (all ones) when there's no controlling terminal.
+    static func ttyName(_ device: UInt32) -> String? {
+        guard device != UInt32.max, device != 0, let name = devname(dev_t(bitPattern: device), S_IFCHR) else { return nil }
+        let text = String(cString: name)
+        return text.isEmpty || text == "??" ? nil : text
     }
 
     static func executablePath(pid: Int32) -> String? {

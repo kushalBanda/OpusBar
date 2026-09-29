@@ -21,6 +21,7 @@ let package = Package(
             resources: [
                 .copy("Resources/oneko-classic.png"), .copy("Resources/CREDITS.md"),
                 .copy("Resources/InterVariable.ttf"), .copy("Resources/Inter-LICENSE.txt"),
+                .copy("Resources/PixelifySans.ttf"), .copy("Resources/PixelifySans-LICENSE.txt"),
             ]
         ),
         .testTarget(name: "OpusBarWireTests", dependencies: ["OpusBarWire"]),

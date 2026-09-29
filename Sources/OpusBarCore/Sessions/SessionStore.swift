@@ -30,6 +30,15 @@ public final class SessionStore {
         self.isAlive = isAlive
     }
 
+    /// The latest hook event per agent since launch, so Settings can show hooks are really working.
+    public struct HookActivity: Equatable, Sendable {
+        public var lastEventAt: Date
+        public var lastEvent: HookEventName
+        public var count: Int
+    }
+
+    public private(set) var hookActivity: [AgentKind: HookActivity] = [:]
+
     public var sessions: [Session] { state.sorted }
     public var aggregate: Aggregate { Aggregate.of(state.byId.values) }
 
@@ -37,6 +46,9 @@ public final class SessionStore {
     public var isPruneTimerRunning: Bool { pruneTimer != nil }
 
     public func apply(_ event: WireEvent) {
+        let agent = event.agent ?? .claude
+        hookActivity[agent] = HookActivity(lastEventAt: now(), lastEvent: event.e.event,
+                                           count: (hookActivity[agent]?.count ?? 0) + 1)
         var next = SessionReducer.reduce(state, event, now: now())
         let id = event.e.sessionId
         // The hook now names this process's session; its discovered placeholder row goes.
@@ -62,6 +74,22 @@ public final class SessionStore {
         let hooked = next.byId.values.filter { !$0.isDiscovered }
         let hookedPIDs = Set(hooked.compactMap(\.pid))
         let hookedIds = Set(hooked.map(\.id))
+        // Hooked sessions keep their live states. Discovery lends them the session's name, and corrects
+        // one known gap: an interrupted turn (Esc) sends no Stop, so a turn the agent itself reports idle
+        // after our last event is over. Needs-you is never cleared this way.
+        for process in found {
+            guard let id = next.byId.values.first(where: { !$0.isDiscovered && ($0.id == process.sessionId || $0.pid == process.pid) })?.id,
+                  var session = next.byId[id]
+            else { continue }
+            if let host = process.host { session.host = host }
+            guard let record = process.record else { next.byId[id] = session; continue }
+            if let title = record.title { session.title = title }
+            if Self.turnEndedWithoutStop(session, record: record) {
+                session.transition(to: .idle, detail: nil, now: now)
+                session.turnStartedAt = nil
+            }
+            next.byId[id] = session
+        }
         let live = found.filter { !hookedPIDs.contains($0.pid) && !hookedIds.contains($0.sessionId) }
         let liveIds = Set(live.map(\.sessionId))
         // Drop rows whose process is gone, or whose id changed (pid row upgraded to the real session id).
@@ -82,14 +110,28 @@ public final class SessionStore {
             }
             session.agent = process.agent
             session.pid = process.pid
-            if let activity = process.record?.modifiedAt {
-                session.lastEventAt = activity
-                let active = now.timeIntervalSince(activity) <= Self.activeWindow
+            session.title = process.record?.title
+            session.host = process.host
+            if let record = process.record {
+                session.lastEventAt = record.modifiedAt
+                // The agent's own status beats guessing from file activity.
+                let active = switch record.status {
+                case .busy: true
+                case .idle: false
+                case nil: now.timeIntervalSince(record.modifiedAt) <= Self.activeWindow
+                }
                 session.transition(to: active ? .working : .idle, detail: nil, now: now)
             }
             next.byId[process.sessionId] = session
         }
         set(next)
+    }
+
+    static func turnEndedWithoutStop(_ session: Session, record: SessionRecord) -> Bool {
+        guard session.state == .thinking || session.state == .working,
+              record.status == .idle, let statusAt = record.statusAt
+        else { return false }
+        return statusAt > session.lastEventAt
     }
 
     /// Branch can change between turns, so re-read it at turn edges and whenever the cwd moves. A few small file reads.

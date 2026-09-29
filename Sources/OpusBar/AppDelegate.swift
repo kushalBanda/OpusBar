@@ -37,7 +37,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = ProcessInfo.processInfo.environment
         let discovery = DiscoveryScheduler(store: store, discovery: SessionDiscovery(
             environment: environment,
-            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) }))
+            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
+            piFamilyFolders: { PiFamilyFolders.folders(for: $0) }))
         discovery.start()
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
@@ -45,7 +46,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
         self.notifier = notifier
-        let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier)
+        let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store)
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks, settings: settings) {
             discovery.scanNow()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
@@ -56,7 +57,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let index = arguments.firstIndex(of: "--settings"), index + 1 < arguments.count {
             settings.show(SettingsPane(rawValue: arguments[index + 1]))
         }
-        if arguments.contains("--menu") { statusItem?.showMenu() }
+        if arguments.contains("--menu") {
+            // `--menu-delay <s>` waits first, so test sessions can arrive before the screenshot.
+            let delay = arguments.firstIndex(of: "--menu-delay").flatMap { $0 + 1 < arguments.count ? Double(arguments[$0 + 1]) : nil } ?? 0
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.statusItem?.showMenu() }
+        }
         #endif
     }
 

@@ -1,4 +1,5 @@
 import Foundation
+import OpusBarWire
 import Observation
 
 /// How long done and errored sessions stay in the list.
@@ -79,5 +80,15 @@ public final class Preferences {
     /// The first-run card offers to connect an agent until one is connected or the user says "Not now".
     public nonisolated static func offersConnect(anyConnected: Bool, anyConnectable: Bool, dismissed: Bool) -> Bool {
         anyConnectable && !anyConnected && !dismissed
+    }
+}
+
+/// Session folders the user added for pi and OMP (sessions kept outside the default places).
+/// Plain UserDefaults string arrays, read off the main thread by discovery.
+public enum PiFamilyFolders {
+    public static func key(for agent: AgentKind) -> String { "\(agent.rawValue)SessionFolders" }
+
+    public static func folders(for agent: AgentKind, defaults: UserDefaults = .standard) -> [String] {
+        defaults.stringArray(forKey: key(for: agent)) ?? []
     }
 }

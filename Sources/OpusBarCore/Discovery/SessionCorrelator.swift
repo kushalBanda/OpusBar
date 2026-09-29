@@ -7,12 +7,18 @@ public enum SessionCorrelator {
     /// - Claude and pi/OMP: same cwd, and the record changed at or after the process started.
     ///   Claude only when a single Claude process runs in that cwd (otherwise the pairing is a guess).
     /// - Codex: first unused rollout with the same cwd.
-    public static func match(_ processes: [DiscoveredProcess], records: [SessionRecord]) -> [Int32: SessionRecord] {
-        var used = Set<String>()
-        var result: [Int32: SessionRecord] = [:]
-        let claudeCountByCWD = Dictionary(grouping: processes.filter { $0.agent == .claude }.compactMap { $0.cwd.map(normalized) },
+    /// `exact` pairs a pid straight to its record (Claude's per-pid file); those win, and only the
+    /// remaining processes go through the cwd rules.
+    public static func match(_ processes: [DiscoveredProcess], records: [SessionRecord],
+                             exact: [Int32: SessionRecord] = [:]) -> [Int32: SessionRecord] {
+        var result = exact.filter { pid, _ in processes.contains { $0.pid == pid } }
+        var used = Set(result.values.map(\.path))
+        let usedIds = Set(result.values.map(\.id))
+        let records = records.filter { !usedIds.contains($0.id) }
+        let remaining = processes.filter { result[$0.pid] == nil }
+        let claudeCountByCWD = Dictionary(grouping: remaining.filter { $0.agent == .claude }.compactMap { $0.cwd.map(normalized) },
                                           by: { $0 }).mapValues(\.count)
-        let ordered = processes.sorted { ($0.startedAt ?? .distantPast, $0.pid) > ($1.startedAt ?? .distantPast, $1.pid) }
+        let ordered = remaining.sorted { ($0.startedAt ?? .distantPast, $0.pid) > ($1.startedAt ?? .distantPast, $1.pid) }
         for process in ordered {
             guard let cwd = process.cwd.map(normalized) else { continue }
             if process.agent == .claude, claudeCountByCWD[cwd, default: 0] != 1 { continue }

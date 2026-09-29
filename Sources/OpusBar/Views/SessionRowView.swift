@@ -1,3 +1,4 @@
+import AppKit
 import OpusBarCore
 import OpusBarWire
 import SwiftUI
@@ -7,6 +8,11 @@ struct SessionRowView: View {
     let session: Session
     let now: Date
     var showsBranch = false
+    /// Click toggles an inline details panel: where the session is, how OpusBar sees it, and quick actions.
+    var isExpanded = false
+    /// Whether this session's agent already has OpusBar hooks, which changes the hint for found-running rows.
+    var agentConnected = false
+    var onTap: () -> Void = {}
 
     /// Charcoal text on brand fills (AA on yellow and red).
     private static let onColor = Color(red: 0.173, green: 0.18, blue: 0.165)
@@ -15,6 +21,24 @@ struct SessionRowView: View {
     private var isLoud: Bool { session.state == .needsAttention || session.state == .error }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            summary
+            if isExpanded {
+                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
+                    .transition(.opacity)
+            }
+        }
+        .foregroundStyle(isLoud ? AnyShapeStyle(Self.onColor) : AnyShapeStyle(.primary))
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 16).fill(isLoud ? session.state.tileColor : Color.primary.opacity(isExpanded ? 0.08 : 0.05)))
+        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .onTapGesture(perform: onTap)
+        .accessibilityElement(children: .contain)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityHint(isExpanded ? "Hides details" : "Shows details")
+    }
+
+    private var summary: some View {
         HStack(alignment: .center, spacing: 12) {
             CatView(state: session.state)
                 .frame(width: 40, height: 40)
@@ -31,19 +55,14 @@ struct SessionRowView: View {
             }
             .layoutPriority(1)
             Spacer(minLength: 4)
-            Text(Self.elapsed(from: session.stateSince, to: now))
+            Text(Self.elapsed(from: Self.timerStart(for: session), to: now))
                 .font(Theme.font(11).monospacedDigit())
                 .foregroundStyle(secondary)
                 .fixedSize()
                 .frame(maxHeight: .infinity, alignment: .top)
+                .help(timerHelp)
         }
-        .foregroundStyle(isLoud ? AnyShapeStyle(Self.onColor) : AnyShapeStyle(.primary))
-        .padding(10)
-        .background(RoundedRectangle(cornerRadius: 16).fill(isLoud ? session.state.tileColor : Color.primary.opacity(0.05)))
-        .help(session.isDiscovered
-              ? "\(session.cwd)\nFound running (pid \(session.pid ?? 0)). Connect \(session.agent.displayName) in Settings for live states."
-              : "\(session.cwd)\nSubagents: \(session.subagents)")
-        .accessibilityElement(children: .combine)
+.accessibilityElement(children: .combine)
     }
 
     private var secondary: AnyShapeStyle {
@@ -55,7 +74,8 @@ struct SessionRowView: View {
             .compactMap { $0 }
             .joined(separator: ", ")
         // Discovered rows have no live state until the agent's hooks report in.
-        let label = Self.label(for: session)
+        let label = [Self.label(for: session), Self.distinctTitle(for: session), session.host?.appName]
+            .compactMap { $0 }.joined(separator: " · ")
         return extras.isEmpty ? label : "\(label) · \(extras)"
     }
 
@@ -66,11 +86,109 @@ struct SessionRowView: View {
         return session.state == .working ? "Active" : "Idle"
     }
 
+    /// The corner timer means different things per state; say which on hover.
+    private var timerHelp: String {
+        let span = Self.elapsed(from: Self.timerStart(for: session), to: now)
+        let what = switch session.state {
+        case .thinking, .working: session.turnStartedAt == nil ? "\(Self.label(for: session)) for \(span)" : "This turn has run \(span)"
+        default: "\(Self.label(for: session)) for \(span)"
+        }
+        return "\(what). Session started \(Self.elapsed(from: session.startedAt, to: now)) ago."
+    }
+
+    /// During a turn the timer counts the whole turn, not just the current tool or pause, so it
+    /// doesn't reset on every tool call.
+    static func timerStart(for session: Session) -> Date {
+        switch session.state {
+        case .thinking, .working: session.turnStartedAt ?? session.stateSince
+        default: session.stateSince
+        }
+    }
+
+    /// The session's own name, unless it just repeats the folder name.
+    static func distinctTitle(for session: Session) -> String? {
+        guard let title = session.title, title.caseInsensitiveCompare(session.projectName) != .orderedSame else { return nil }
+        return title
+    }
+
     static func elapsed(from start: Date, to now: Date) -> String {
-        let seconds = max(0, Int(now.timeIntervalSince(start)))
-        if seconds >= 3600 { return "\(seconds / 3600)h \(seconds % 3600 / 60)m" }
-        if seconds >= 60 { return "\(seconds / 60)m \(String(format: "%02d", seconds % 60))s" }
-        return "\(seconds)s"
+        ElapsedFormat.short(from: start, to: now)
+    }
+}
+
+/// The expanded part of a card: facts first, then actions that work for everyone.
+private struct SessionDetails: View {
+    let session: Session
+    let now: Date
+    let secondary: AnyShapeStyle
+    let agentConnected: Bool
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                row("Folder", Self.tildePath(session.cwd))
+                if let branch = session.branch { row("Branch", branch) }
+                if let title = session.title { row("Session", title) }
+                if let place = session.host?.label ?? session.term?.termProgram.map(Self.terminalName) { row("Where", place) }
+                row("Started", "\(ElapsedFormat.short(from: session.startedAt, to: now)) ago")
+                row("Last activity", "\(ElapsedFormat.short(from: session.lastEventAt, to: now)) ago")
+                row("States", session.isDiscovered ? "Found running, no live states" : "Live from hooks")
+            }
+            if session.isDiscovered {
+                // Hooks load when a session starts, so sessions that predate connecting stay without live states.
+                Text(liveStatesHint)
+                    .font(Theme.font(11, .regular)).foregroundStyle(secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 8) {
+                Button("Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(session.cwd, forType: .string)
+                }
+                Button("Show in Finder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])
+                }
+                .disabled(session.cwd.isEmpty)
+            }
+            .controlSize(.small)
+        }
+        .padding(.leading, 52) // lines up with the text column, past the cat tile
+    }
+
+    private var liveStatesHint: String {
+        switch session.agent {
+        case .pi, .omp:
+            return "Live states for \(session.agent.displayName) come in a later update."
+        case .claude, .codex:
+            return agentConnected
+                ? "This session started before OpusBar was connected. Restart it to see thinking, working and needs you here."
+                : "Connect \(session.agent.displayName) in Settings, then restart this session, to see thinking, working and needs you here."
+        }
+    }
+
+    private func row(_ label: String, _ value: String) -> some View {
+        GridRow {
+            Text(label).font(Theme.font(11, .regular)).foregroundStyle(secondary)
+            Text(value).font(Theme.font(11, .medium)).lineLimit(2).truncationMode(.middle)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+    }
+
+    static func tildePath(_ path: String) -> String {
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
+    }
+
+    static func terminalName(_ program: String) -> String {
+        switch program {
+        case "Apple_Terminal": "Terminal"
+        case "iTerm.app": "iTerm"
+        case "vscode": "VS Code"
+        case "WarpTerminal": "Warp"
+        case "ghostty": "Ghostty"
+        default: program
+        }
     }
 }
 

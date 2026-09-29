@@ -24,6 +24,12 @@ enum Theme {
         BrandFont.isAvailable ? .custom(BrandFont.family, size: size).weight(weight) : .system(size: size, weight: weight)
     }
 
+    /// Pixel display type for playful titles ("Meow!"), falling back to the rounded system font.
+    static func playful(_ size: CGFloat) -> Font {
+        BrandFont.isPlayfulAvailable ? .custom(BrandFont.playfulFamily, size: size).weight(.bold)
+            : .system(size: size, weight: .heavy, design: .rounded)
+    }
+
     static let tileRadius: CGFloat = 16
     static let controlRadius: CGFloat = 10
 
@@ -34,22 +40,30 @@ enum Theme {
     }
 }
 
-/// Registers the bundled Inter for this process only (nothing is installed system-wide).
+/// Registers the bundled fonts for this process only (nothing is installed system-wide):
+/// Inter for all text, Pixelify Sans for the playful display title.
 enum BrandFont {
     static let family = "Inter Variable"
+    static let playfulFamily = "Pixelify Sans"
     @MainActor private(set) static var isRegistered = false
     nonisolated(unsafe) private(set) static var isAvailable = false
+    nonisolated(unsafe) private(set) static var isPlayfulAvailable = false
 
     @MainActor
     static func register() {
         guard !isRegistered else { return }
         isRegistered = true
-        let url = Bundle.main.url(forResource: "InterVariable", withExtension: "ttf")
-            ?? Bundle(url: Bundle.main.bundleURL.appending(path: "OpusBar_OpusBar.bundle"))?.url(forResource: "InterVariable", withExtension: "ttf")
-        guard let url else { return }
+        isAvailable = registerFont("InterVariable", postScriptName: "InterVariable")
+        isPlayfulAvailable = registerFont("PixelifySans", postScriptName: "PixelifySans-Regular")
+    }
+
+    private static func registerFont(_ name: String, postScriptName: String) -> Bool {
+        let url = Bundle.main.url(forResource: name, withExtension: "ttf")
+            ?? Bundle(url: Bundle.main.bundleURL.appending(path: "OpusBar_OpusBar.bundle"))?.url(forResource: name, withExtension: "ttf")
+        guard let url else { return false }
         var error: Unmanaged<CFError>?
-        isAvailable = CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
-            || NSFont(name: "InterVariable", size: 12) != nil // already registered
+        return CTFontManagerRegisterFontsForURL(url as CFURL, .process, &error)
+            || NSFont(name: postScriptName, size: 12) != nil // already registered
     }
 }
 

@@ -3,18 +3,32 @@ import OpusBarWire
 
 /// Metadata of one on-disk agent session. Only id, cwd and timestamps; message bodies are never kept.
 public struct SessionRecord: Equatable, Sendable {
+    /// What the agent itself reports about a running session, when it does (Claude's per-pid file).
+    public enum LiveStatus: String, Sendable {
+        case busy, idle
+    }
+
     public var id: String
     public var agent: AgentKind
     public var cwd: String?
     public var modifiedAt: Date
     public var path: String
+    /// The session's own name (e.g. Claude's `quant-8d`), to tell apart sessions in one folder.
+    public var title: String?
+    public var status: LiveStatus?
+    /// When the agent last changed `status`.
+    public var statusAt: Date?
 
-    public init(id: String, agent: AgentKind, cwd: String?, modifiedAt: Date, path: String) {
+    public init(id: String, agent: AgentKind, cwd: String?, modifiedAt: Date, path: String,
+                title: String? = nil, status: LiveStatus? = nil, statusAt: Date? = nil) {
         self.id = id
         self.agent = agent
         self.cwd = cwd
         self.modifiedAt = modifiedAt
         self.path = path
+        self.title = title
+        self.status = status
+        self.statusAt = statusAt
     }
 }
 
@@ -65,6 +79,62 @@ public enum SessionRecordReader {
     }
 
     /// Transcripts for one cwd across all known project roots, newest first. The file name is the session id.
+    /// Claude writes `<config root>/sessions/<pid>.json` for each running session: its id, cwd, name,
+    /// status and the process start time. Read only for the pids asked about, never listed.
+    /// A file counts only if its recorded start matches the live process (within 2 s), so a reused
+    /// pid never inherits a dead session's file.
+    public static func claudeLiveSessions(processes: [(pid: Int32, startedAt: Date?)], configRoots: [URL]) -> [Int32: SessionRecord] {
+        var result: [Int32: SessionRecord] = [:]
+        for process in processes {
+            for root in configRoots {
+                let file = root.appending(path: "sessions/\(process.pid).json")
+                guard let record = claudeLiveSession(at: file, pid: process.pid, startedAt: process.startedAt, configRoot: root)
+                else { continue }
+                result[process.pid] = record
+                break
+            }
+        }
+        return result
+    }
+
+    static func claudeLiveSession(at file: URL, pid: Int32, startedAt: Date?, configRoot: URL) -> SessionRecord? {
+        guard let handle = try? FileHandle(forReadingFrom: file) else { return nil }
+        defer { try? handle.close() }
+        guard let data = try? handle.read(upToCount: 64 * 1024),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              (json["pid"] as? NSNumber)?.int32Value == pid,
+              let id = json["sessionId"] as? String, !id.isEmpty
+        else { return nil }
+        if let startedAt {
+            guard let recorded = (json["procStart"] as? String).flatMap(parseProcStart),
+                  abs(recorded.timeIntervalSince(startedAt)) <= 2
+            else { return nil }
+        }
+        let cwd = json["cwd"] as? String
+        let transcript = cwd.map {
+            configRoot.appending(path: "projects/\(claudeProjectFolderName(for: $0))/\(id).jsonl")
+        }
+        let transcriptModified = transcript.flatMap {
+            (try? FileManager.default.attributesOfItem(atPath: $0.path))?[.modificationDate] as? Date
+        }
+        let updated = (json["updatedAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) }
+        return SessionRecord(id: id, agent: .claude, cwd: cwd,
+                             modifiedAt: [transcriptModified, updated].compactMap { $0 }.max() ?? .distantPast,
+                             path: transcript?.path ?? file.path,
+                             title: (json["name"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                             status: (json["status"] as? String).flatMap(SessionRecord.LiveStatus.init(rawValue:)),
+                             statusAt: (json["statusUpdatedAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) })
+    }
+
+    /// `procStart` is the process start in C `ctime` form, UTC: "Sun Sep 27 16:38:37 2026".
+    static func parseProcStart(_ text: String) -> Date? {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        formatter.dateFormat = "EEE MMM d HH:mm:ss yyyy"
+        return formatter.date(from: text.split(separator: " ").joined(separator: " "))
+    }
+
     public static func claudeTranscripts(cwd: String, projectRoots: [URL], now: Date,
                                          budget: inout ScanBudget) -> [SessionRecord] {
         let folder = claudeProjectFolderName(for: cwd)
@@ -116,18 +186,27 @@ public enum SessionRecordReader {
 
     /// Session files under `roots/<bucket>/*.jsonl` changed at or after `since` (the oldest live process start).
     /// Bucket names are escaped or hashed cwds, so the header's cwd is used instead of decoding them.
+    /// Handles both layouts: session files grouped in per-project buckets (the default), and files
+    /// directly in the root (`--session-dir`).
     public static func piFamilyRecords(roots: [URL], dialect: AgentKind, since: Date, now: Date,
                                        budget: inout ScanBudget) -> [SessionRecord] {
         var records: [SessionRecord] = []
+        var seen = Set<String>()
+        func read(_ file: (url: URL, modifiedAt: Date, isDirectory: Bool)) {
+            guard !file.isDirectory, file.url.pathExtension == "jsonl", file.modifiedAt >= since,
+                  seen.insert(file.url.standardizedFileURL.path).inserted, budget.hasTimeRemaining,
+                  let header = piFamilyHeader(firstLines(of: file.url, count: 2), dialect: dialect)
+            else { return }
+            records.append(SessionRecord(id: header.id, agent: dialect, cwd: header.cwd,
+                                         modifiedAt: min(file.modifiedAt, now), path: file.url.path))
+        }
         for root in roots {
-            for bucket in budget.children(of: root) where bucket.isDirectory && bucket.modifiedAt >= since {
-                for file in budget.children(of: bucket.url)
-                where !file.isDirectory && file.url.pathExtension == "jsonl" && file.modifiedAt >= since {
-                    guard budget.hasTimeRemaining,
-                          let header = piFamilyHeader(firstLines(of: file.url, count: 2), dialect: dialect)
-                    else { continue }
-                    records.append(SessionRecord(id: header.id, agent: dialect, cwd: header.cwd,
-                                                 modifiedAt: min(file.modifiedAt, now), path: file.url.path))
+            for entry in budget.children(of: root) {
+                if entry.isDirectory {
+                    guard entry.modifiedAt >= since else { continue }
+                    for file in budget.children(of: entry.url) { read(file) }
+                } else {
+                    read(entry)
                 }
             }
         }
@@ -145,21 +224,108 @@ public enum SessionRecordReader {
         return (id, header["cwd"] as? String)
     }
 
-    /// Default pi and OMP session roots that exist.
-    public static func piFamilyRoots(dialect: AgentKind, home: URL, environment: [String: String]) -> [URL] {
-        var roots: [URL]
+    /// pi and OMP session roots that exist, from (in order): each process's `--session-dir`,
+    /// OMP `--profile`, OpusBar's own environment, folders the user added, then the defaults.
+    /// Never another process's environment.
+    public static func piFamilyRoots(dialect: AgentKind, home: URL, environment: [String: String],
+                                     processes: [(arguments: [String], cwd: String?)] = [],
+                                     userAdded: [String] = []) -> [URL] {
+        var roots: [URL] = []
+        let env = { (key: String) in environment[key].flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 } }
+        for process in processes {
+            if let dir = argumentValue("--session-dir", in: process.arguments),
+               let url = expand(dir, home: home, relativeTo: process.cwd) {
+                roots.append(url)
+            }
+            if dialect == .omp, let profile = argumentValue("--profile", in: process.arguments) {
+                roots += ompProfileRoots(profile, home: home, environment: environment)
+            }
+        }
         switch dialect {
         case .pi:
-            roots = [home.appending(path: ".pi/agent/sessions", directoryHint: .isDirectory)]
+            if let dir = env("PI_CODING_AGENT_SESSION_DIR"), let url = expand(dir, home: home, relativeTo: nil) { roots.append(url) }
+            if let dir = env("PI_CODING_AGENT_DIR"), let url = expand(dir, home: home, relativeTo: nil) {
+                roots.append(url.appending(path: "sessions", directoryHint: .isDirectory))
+            }
+            roots.append(home.appending(path: ".pi/agent/sessions", directoryHint: .isDirectory))
         case .omp:
-            roots = [home.appending(path: ".omp/agent/sessions", directoryHint: .isDirectory)]
-            let xdg = environment["XDG_DATA_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
+            if let dir = env("PI_CODING_AGENT_SESSION_DIR"), let url = expand(dir, home: home, relativeTo: nil) { roots.append(url) }
+            if let profile = env("OMP_PROFILE") ?? env("PI_PROFILE") {
+                roots += ompProfileRoots(profile, home: home, environment: environment)
+            }
+            roots.append(ompConfigRoot(home: home, environment: environment).appending(path: "agent/sessions", directoryHint: .isDirectory))
+            let xdg = env("XDG_DATA_HOME").flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
                 ?? home.appending(path: ".local/share", directoryHint: .isDirectory)
             roots.append(xdg.appending(path: "omp/sessions", directoryHint: .isDirectory))
         default:
-            roots = []
+            break
         }
-        return roots.filter { FileManager.default.fileExists(atPath: $0.path) }
+        roots += userAdded.map { URL(fileURLWithPath: $0, isDirectory: true) }
+        var seen = Set<String>()
+        return roots.filter {
+            seen.insert($0.standardizedFileURL.path).inserted && FileManager.default.fileExists(atPath: $0.path)
+        }
+    }
+
+    /// `~/<PI_CONFIG_DIR or .omp>`; a config dir that isn't a plain name under home is ignored.
+    static func ompConfigRoot(home: URL, environment: [String: String]) -> URL {
+        let name = environment["PI_CONFIG_DIR"]?.trimmingCharacters(in: .whitespaces) ?? ""
+        let valid = !name.isEmpty && !name.hasPrefix("/") && !name.split(separator: "/").contains("..")
+        return home.appending(path: valid ? name : ".omp", directoryHint: .isDirectory)
+    }
+
+    static func ompProfileRoots(_ profile: String, home: URL, environment: [String: String]) -> [URL] {
+        guard !profile.isEmpty, !profile.contains("/"), profile != "..", profile != "." else { return [] }
+        let base = ompConfigRoot(home: home, environment: environment).appending(path: "profiles/\(profile)", directoryHint: .isDirectory)
+        return [base.appending(path: "agent/sessions", directoryHint: .isDirectory),
+                base.appending(path: "sessions", directoryHint: .isDirectory)]
+    }
+
+    /// `--flag value` or `--flag=value`.
+    static func argumentValue(_ flag: String, in arguments: [String]) -> String? {
+        for (index, argument) in arguments.enumerated() {
+            if argument == flag, index + 1 < arguments.count { return arguments[index + 1] }
+            if argument.hasPrefix(flag + "=") { return String(argument.dropFirst(flag.count + 1)) }
+        }
+        return nil
+    }
+
+    /// Absolute, `~`-relative, or relative to the process's cwd when known.
+    static func expand(_ path: String, home: URL, relativeTo cwd: String?) -> URL? {
+        let path = path.trimmingCharacters(in: .whitespaces)
+        if path == "~" { return home }
+        if path.hasPrefix("~/") { return home.appending(path: String(path.dropFirst(2)), directoryHint: .isDirectory) }
+        if path.hasPrefix("/") { return URL(fileURLWithPath: path, isDirectory: true) }
+        guard let cwd, !path.isEmpty else { return nil }
+        return URL(fileURLWithPath: cwd, isDirectory: true).appending(path: path, directoryHint: .isDirectory).standardizedFileURL
+    }
+
+    /// Claude desktop keeps per-session config roots under Application Support; each may hold a
+    /// `.claude/projects`. Walks at most 4 levels, never follows symlinks, skips build folders.
+    public static func claudeDesktopProjectRoots(home: URL, budget: inout ScanBudget) -> [URL] {
+        let support = home.appending(path: "Library/Application Support/Claude", directoryHint: .isDirectory)
+        let skipped: Set<String> = [".build", ".git", "build", "DerivedData", "node_modules", "outputs", "target"]
+        var queue = ["claude-code-sessions", "local-agent-mode-sessions"].map {
+            (url: support.appending(path: $0, directoryHint: .isDirectory), depth: 0)
+        }
+        var roots: [URL] = []
+        var index = 0
+        while index < queue.count, budget.hasTimeRemaining {
+            let (url, depth) = queue[index]
+            index += 1
+            let projects = url.appending(path: ".claude/projects", directoryHint: .isDirectory)
+            var isDirectory: ObjCBool = false
+            if FileManager.default.fileExists(atPath: projects.path, isDirectory: &isDirectory), isDirectory.boolValue {
+                roots.append(projects)
+            }
+            guard depth < 4 else { continue }
+            for child in budget.children(of: url)
+            // `children(of:)` skips hidden entries, and a symlink never reports isDirectory.
+            where child.isDirectory && !skipped.contains(child.url.lastPathComponent) {
+                queue.append((child.url, depth + 1))
+            }
+        }
+        return roots
     }
 
     // MARK: Helpers

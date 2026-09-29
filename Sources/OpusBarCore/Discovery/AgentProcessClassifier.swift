@@ -4,6 +4,11 @@ import OpusBarWire
 /// Decides which processes are agent sessions. Helpers, one-shot commands and app servers are skipped.
 public enum AgentProcessClassifier {
     static let claudeDesktopPath = "application support/claude/claude-code/claude"
+
+    /// A Claude session started by the Claude desktop app (its sessions live under Application Support).
+    public static func isClaudeDesktop(_ process: AgentProcess) -> Bool {
+        (process.executablePath + " " + process.commandLine).lowercased().contains(claudeDesktopPath)
+    }
     static let trustedCodexAppPaths: Set<String> = [
         "/applications/codex.app/contents/resources/codex",
         "/applications/chatgpt.app/contents/resources/codex",
