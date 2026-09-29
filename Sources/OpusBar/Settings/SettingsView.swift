@@ -380,24 +380,87 @@ private struct PlanBadge: View {
     }
 }
 
-/// Stub until keys can be checked (M3.2): says which plan this is and what Pro adds.
+/// Free: what Pro adds, Buy, and the key field. Pro: the key (masked) and Deactivate.
 @MainActor
 struct LicensePane: View {
     let entitlements: Entitlements
+    @State private var key = ""
+    @State private var checking = false
+    @State private var error: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             PaneTitle(title: "License")
-            Tile(fill: entitlements.isPro ? Theme.green : Theme.surface, onColor: entitlements.isPro) {
-                TileHeading(title: entitlements.isPro ? "You're on Pro" : "You're on Free",
-                            subtitle: entitlements.isPro
-                                ? "Thanks for supporting OpusBar."
-                                : "Sessions, live states, the cat and notifications are free. Pro adds jumping to a session's window and Usage and Spend, for a one-time \(Entitlements.proPrice). No account.")
+            if entitlements.isPro { pro } else { free }
+        }
+    }
+
+    private var pro: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Tile(fill: Theme.green, onColor: true) {
+                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Jump to session and Usage and Spend are yours.")
             }
-            if !entitlements.isPro {
-                Text("Entering a license key arrives in the next build.")
-                    .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 4)
+            if let license = entitlements.license {
+                Tile {
+                    HStack(spacing: 12) {
+                        TileHeading(title: "License key", subtitle: Entitlements.masked(license.key))
+                        Spacer()
+                        Button("Deactivate") { entitlements.deactivate() }
+                            .help("Removes the key from this Mac. The key keeps working, so you can enter it again.")
+                    }
+                }
             }
+        }
+    }
+
+    private var free: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Tile {
+                HStack(alignment: .center, spacing: 16) {
+                    TileHeading(title: "You're on Free",
+                                subtitle: "Sessions, live states, the cat and notifications are free. Pro adds jumping to a session's window and Usage and Spend, for a one-time \(Entitlements.proPrice). No account.")
+                    Spacer(minLength: 0)
+                    if let checkout = entitlements.checkoutURL {
+                        Button("Buy Pro") { NSWorkspace.shared.open(checkout) }
+                            .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
+                    }
+                }
+            }
+            Tile {
+                TileHeading(title: "License key", subtitle: "From your Polar receipt email.")
+                HStack(spacing: 8) {
+                    TextField("License key", text: $key)
+                        .textFieldStyle(.roundedBorder)
+                        .font(Theme.font(13).monospaced())
+                        .onSubmit(activate)
+                        .onChange(of: key) { _, _ in error = nil }
+                        .disabled(checking)
+                    Button(checking ? "Checking…" : "Activate", action: activate)
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(checking || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+                .padding(.top, 6)
+                if let error {
+                    Label(error, systemImage: "exclamationmark.circle.fill")
+                        .font(Theme.font(12, .medium)).foregroundStyle(Theme.red)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .transition(.opacity)
+                }
+            }
+            Text("Checked once online with Polar, then it works offline. Nothing else is sent.")
+                .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 4)
+        }
+    }
+
+    private func activate() {
+        guard !checking else { return }
+        checking = true
+        error = nil
+        Task {
+            let failure = await entitlements.activate(key: key)
+            checking = false
+            error = failure?.message
+            if failure == nil { key = "" }
         }
     }
 }

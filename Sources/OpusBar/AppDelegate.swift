@@ -17,12 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         BrandFont.register()
         let preferences = Preferences()
-        #if DEBUG
-        // `--pro` shows the app as Pro, for screenshots until a key can be checked.
-        let entitlements = Entitlements(isPro: ProcessInfo.processInfo.arguments.contains("--pro"))
-        #else
-        let entitlements = Entitlements()
-        #endif
+        let entitlements = Self.makeEntitlements()
         let store = SessionStore(finishedTTL: preferences.retention.seconds)
         self.preferences = preferences
         self.store = store
@@ -72,6 +67,44 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         #endif
     }
+
+    /// Live Polar and the login Keychain. Debug builds: `--pro` shows Pro without a key, and
+    /// `--polar-sandbox <organization id>` checks keys against Polar's sandbox, kept in a separate Keychain item.
+    @MainActor
+    private static func makeEntitlements() -> Entitlements {
+        #if DEBUG
+        let arguments = ProcessInfo.processInfo.arguments
+        if arguments.contains("--pro") { return Entitlements(isPro: true) }
+        if let index = arguments.firstIndex(of: "--polar-sandbox"), index + 1 < arguments.count {
+            let store = PolarStore(apiBase: PolarStore.sandboxAPI, organizationId: arguments[index + 1],
+                                   checkoutURL: URL(string: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_lhhOin1IJlKBJzHlBzAUOHhcvS9x7C5D6FbBP0CjZic/redirect"))
+            return Entitlements(provider: PolarLicenseProvider(store: store),
+                                cache: SandboxLicenseCache(), checkoutURL: store.checkoutURL)
+        }
+        #endif
+        return Entitlements(provider: PolarLicenseProvider(store: .live), cache: KeychainLicenseCache(),
+                            checkoutURL: PolarStore.live.checkoutURL)
+    }
+
+    #if DEBUG
+    /// Sandbox keys in UserDefaults: debug builds are re-signed on every build, and the Keychain asks
+    /// for the login password each time a differently signed app reads its item. Sandbox keys buy nothing.
+    private struct SandboxLicenseCache: LicenseCache {
+        private static let defaultsKey = "debugSandboxLicense"
+
+        func load() -> StoredLicense? {
+            UserDefaults.standard.data(forKey: Self.defaultsKey).flatMap { try? JSONDecoder().decode(StoredLicense.self, from: $0) }
+        }
+
+        func save(_ license: StoredLicense) throws {
+            UserDefaults.standard.set(try JSONEncoder().encode(license), forKey: Self.defaultsKey)
+        }
+
+        func clear() {
+            UserDefaults.standard.removeObject(forKey: Self.defaultsKey)
+        }
+    }
+    #endif
 
     /// Keeps the store's finished-session TTL in step with Settings, and prunes right away on a change.
     @MainActor

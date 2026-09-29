@@ -14,15 +14,18 @@ final class StatusItemController: NSObject {
     static let catPoints: CGFloat = 20
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-    private let popover = NSPopover()
+    /// The dropdown is a real menu with one item hosting the SwiftUI list. While a menu is open macOS
+    /// keeps the menu bar on screen, also in a full-screen Space where a popover would vanish with it,
+    /// and it handles outside clicks and Esc itself.
+    private let menu = NSMenu()
+    private var content: MenuHostingView<SessionListView>!
     private let store: SessionStore
     /// Called each time the dropdown opens (fresh discovery pass).
     private let onOpen: () -> Void
     private let settings: SettingsWindowController
     private let preferences: Preferences
     private let layout = PopoverLayout()
-    /// Local key monitor, installed only while the popover is open, so Esc closes it.
-    private var escMonitor: Any?
+    private(set) var isMenuShown = false
 
     private var aggregate = Aggregate(state: nil, needsYouCount: 0, activeCount: 0)
     private var animation = CatAnimation.idle
@@ -40,19 +43,18 @@ final class StatusItemController: NSObject {
         self.settings = settings
         self.onOpen = onOpen
         super.init()
-        popover.behavior = .transient // closes on any click outside
-        popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
-        popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
-                                                                                       entitlements: entitlements, layout: layout) { [weak self] pane in
-            self?.popover.performClose(nil)
+        content = MenuHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
+                                                           entitlements: entitlements, layout: layout) { [weak self] pane in
+            self?.menu.cancelTracking()
             self?.settings.show(pane)
         })
-        if let button = statusItem.button {
-            button.target = self
-            button.action = #selector(toggle(_:))
-            button.imageScaling = .scaleNone
-        }
+        content.fit()
+        let item = NSMenuItem()
+        item.view = content
+        menu.addItem(item)
+        menu.delegate = self
+        statusItem.menu = menu
+        statusItem.button?.imageScaling = .scaleNone
         NSWorkspace.shared.notificationCenter.addObserver(
             self, selector: #selector(displayOptionsChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
@@ -81,7 +83,6 @@ final class StatusItemController: NSObject {
     }
 
     @objc private func displayOptionsChanged() {
-        popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         restartFrames()
     }
 
@@ -168,41 +169,38 @@ final class StatusItemController: NSObject {
         }
     }
 
-    var isMenuShown: Bool { popover.isShown }
-
     /// Opens the dropdown without a click (notification click, and `--menu` in debug builds).
     func showMenu() {
-        guard !popover.isShown, let button = statusItem.button else { return }
-        toggle(button)
-    }
-
-    @objc private func toggle(_ sender: NSStatusBarButton) {
-        if popover.isShown {
-            popover.performClose(sender)
-        } else {
-            // Accessory apps are never active on their own; without this the popover can't take Esc.
-            onOpen()
-            if let screen = sender.window?.screen ?? NSScreen.main { layout.screenHeight = screen.visibleFrame.height }
-            NSApp.activate(ignoringOtherApps: true)
-            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-            popover.contentViewController?.view.window?.makeKey()
-        }
+        guard !isMenuShown else { return }
+        statusItem.button?.performClick(nil)
     }
 }
 
-extension StatusItemController: NSPopoverDelegate {
-    func popoverDidShow(_ notification: Notification) {
-        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard event.keyCode == 53 else { return event } // Esc
-            self?.popover.performClose(nil)
-            return nil
-        }
+extension StatusItemController: NSMenuDelegate {
+    func menuWillOpen(_ menu: NSMenu) {
+        isMenuShown = true
+        onOpen()
+        if let screen = statusItem.button?.window?.screen ?? NSScreen.main { layout.screenHeight = screen.visibleFrame.height }
+        content.fit()
     }
 
-    func popoverDidClose(_ notification: Notification) {
+    func menuDidClose(_ menu: NSMenu) {
+        isMenuShown = false
         // Done is "finished, not yet seen": once the menu showed it, it goes back to Idle.
         store.acknowledgeDone(seenAt: Date())
-        if let escMonitor { NSEvent.removeMonitor(escMonitor) }
-        escMonitor = nil
+    }
+}
+
+/// Hosts SwiftUI in a menu item. A menu sizes items by their frame, so the frame follows the content
+/// whenever it changes (a card opens, Idle unfolds, sessions come and go).
+final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    override func invalidateIntrinsicContentSize() {
+        super.invalidateIntrinsicContentSize()
+        DispatchQueue.main.async { [weak self] in self?.fit() }
+    }
+
+    func fit() {
+        let size = fittingSize
+        if size.width > 0, size.height > 0, frame.size != size { setFrameSize(size) }
     }
 }

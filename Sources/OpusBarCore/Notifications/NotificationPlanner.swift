@@ -20,6 +20,8 @@ public struct SessionNotice: Equatable, Sendable {
     public let state: SessionState
     public let title: String
     public let body: String
+    /// Notification Center stacks notices with the same thread: one stack per project folder.
+    public var thread: String = ""
 }
 
 /// Decides notifications from a before/after pair of session states. Pure, like the reducer.
@@ -53,23 +55,22 @@ public enum NotificationPlanner {
         session.state == .needsAttention || session.state == .error || session.state == .done
     }
 
-    /// The agent leads the title and the project leads the body, so a project named like the app
-    /// ("OpusBar needs you") can't be mistaken for the app itself.
+    /// Reads like the card it came from: the project and what happened lead the title, the agent and
+    /// the detail follow in the body ("quant needs you" / "Claude Code · Allow Bash?"). The body always
+    /// starts with the agent, so a project named like the app still reads as a session.
     static func notice(for session: Session, rules: NotificationRules) -> SessionNotice? {
         let name = session.projectName
-        let agent = session.agent.displayName
+        let (title, detail): (String, String)
         switch session.state {
-        case .needsAttention where rules.needsYou:
-            return SessionNotice(sessionId: session.id, state: .needsAttention, title: "\(agent) needs you",
-                                 body: "\(name): \(session.detail ?? "Waiting for you")")
-        case .error where rules.error:
-            return SessionNotice(sessionId: session.id, state: .error, title: "\(agent) hit an error",
-                                 body: "\(name): \(session.detail ?? "Stopped with an error")")
-        case .done where rules.done:
-            return SessionNotice(sessionId: session.id, state: .done, title: "\(agent) is done",
-                                 body: "\(name): Finished its turn")
-        default:
-            return nil
+        case .needsAttention where rules.needsYou: (title, detail) = ("\(name) needs you", session.detail ?? "Waiting for you")
+        case .error where rules.error: (title, detail) = ("\(name) hit an error", session.detail ?? "Stopped with an error")
+        case .done where rules.done: (title, detail) = ("\(name) is done", "Finished its turn")
+        default: return nil
         }
+        // Two sessions in one folder: name the session too, so the notice says which one.
+        let sessionTitle = session.title.flatMap { $0.caseInsensitiveCompare(name) == .orderedSame ? nil : $0 }
+        let body = [session.agent.displayName, sessionTitle, detail].compactMap { $0 }.joined(separator: " · ")
+        return SessionNotice(sessionId: session.id, state: session.state, title: title, body: body,
+                             thread: session.cwd.isEmpty ? session.id : session.cwd)
     }
 }

@@ -84,7 +84,7 @@ final class SessionNotifier: NSObject {
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.body = notice.body
-        content.threadIdentifier = notice.sessionId
+        content.threadIdentifier = notice.thread
         // Done is informational; only needs-you and errors make a sound.
         if notice.state != .done { content.sound = .default }
         center.add(UNNotificationRequest(identifier: Self.identifier(notice.sessionId), content: content, trigger: nil))
