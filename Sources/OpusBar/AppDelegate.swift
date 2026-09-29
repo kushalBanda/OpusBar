@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         BrandFont.register()
         let preferences = Preferences()
+        #if DEBUG
+        // `--pro` shows the app as Pro, for screenshots until a key can be checked.
+        let entitlements = Entitlements(isPro: ProcessInfo.processInfo.arguments.contains("--pro"))
+        #else
+        let entitlements = Entitlements()
+        #endif
         let store = SessionStore(finishedTTL: preferences.retention.seconds)
         self.preferences = preferences
         self.store = store
@@ -46,8 +52,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
         self.notifier = notifier
-        let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store)
-        statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks, settings: settings) {
+        let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store,
+                                                entitlements: entitlements)
+        statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
+                                          entitlements: entitlements, settings: settings) {
             discovery.scanNow()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
         }

@@ -13,8 +13,11 @@ final class SettingsWindowController {
     private let launchAtLogin = LaunchAtLogin()
     private let notifier: SessionNotifier
     private let store: SessionStore
+    private let entitlements: Entitlements
 
-    init(hooks: AgentHooksModel, preferences: Preferences, notifier: SessionNotifier, store: SessionStore) {
+    init(hooks: AgentHooksModel, preferences: Preferences, notifier: SessionNotifier, store: SessionStore,
+         entitlements: Entitlements) {
+        self.entitlements = entitlements
         self.hooks = hooks
         self.preferences = preferences
         self.notifier = notifier
@@ -25,7 +28,8 @@ final class SettingsWindowController {
         if let pane { navigation.pane = pane }
         if window == nil {
             let root = SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
-                                    launchAtLogin: launchAtLogin, notifier: notifier, store: store)
+                                    launchAtLogin: launchAtLogin, notifier: notifier, store: store,
+                                    entitlements: entitlements)
             let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "OpusBar Settings"
             window.styleMask = [.titled, .closable, .fullSizeContentView]

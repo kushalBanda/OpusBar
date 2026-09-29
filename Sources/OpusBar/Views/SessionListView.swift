@@ -7,6 +7,7 @@ struct SessionListView: View {
     let store: SessionStore
     let preferences: Preferences
     let hooks: AgentHooksModel
+    let entitlements: Entitlements
     let layout: PopoverLayout
     var openSettings: (SettingsPane?) -> Void = { _ in }
     /// One card open at a time; the others stay compact.
@@ -144,7 +145,9 @@ struct SessionListView: View {
             SessionRowView(session: session, now: now,
                            showsBranch: preferences.naming == .folderAndBranch,
                            isExpanded: expandedId.map { session.id.hasPrefix($0) } ?? false,
-                           agentConnected: hooks.connectedAgents.contains(session.agent)) {
+                           agentConnected: hooks.connectedAgents.contains(session.agent),
+                           isPro: entitlements.isPro,
+                           unlock: { openSettings(.license) }) {
                 withAnimation(reduceMotion ? nil : Self.spring) {
                     expandedId = expandedId.map { session.id.hasPrefix($0) } == true ? nil : session.id
                 }

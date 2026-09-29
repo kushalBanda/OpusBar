@@ -10,7 +10,7 @@ Hook payloads contain prompts, tool inputs, tool responses and assistant message
 - The hook keeps only: `session_id`, `hook_event_name`, `cwd`, `transcript_path`, `permission_mode`, `tool_name`, `notification_type`, `source`, `reason`, `agent_id`, `agent_type`. Everything else is dropped inside the hook process.
 - Only `TERM_PROGRAM`, `TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX` are read from the environment; never the full environment.
 - Session state lives in memory. Nothing is sent off the machine.
-- The only network call in the product is the optional Gumroad license check (M3, ADR 10).
+- The only network call in the product is the optional license key check with Polar (M3, ADRs 10, 14).
 - Any new data access (other files, other processes, network) needs the owner's sign-off first.
 
 ## Consequences

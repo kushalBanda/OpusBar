@@ -2,7 +2,7 @@ import OpusBarCore
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, agents, notifications, about
+    case general, agents, notifications, license, about
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "General"
         case .agents: "Agents"
         case .notifications: "Notifications"
+        case .license: "License"
         case .about: "About"
         }
     }
@@ -20,6 +21,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .agents: "powerplug"
         case .notifications: "bell"
+        case .license: "key"
         case .about: "info.circle"
         }
     }
@@ -29,6 +31,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: Theme.idle
         case .agents: Theme.pink
         case .notifications: Theme.yellow
+        case .license: Theme.green
         case .about: Theme.red
         }
     }
@@ -49,6 +52,7 @@ struct SettingsView: View {
     let launchAtLogin: LaunchAtLogin
     let notifier: SessionNotifier
     let store: SessionStore
+    let entitlements: Entitlements
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -88,7 +92,10 @@ struct SettingsView: View {
                 CatView(state: .idle, points: 32)
                     .frame(width: 44, height: 44)
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.green))
-                Text("OpusBar").font(Theme.font(14, .semibold)).kerning(-0.3)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("OpusBar").font(Theme.font(14, .semibold)).kerning(-0.3)
+                    PlanBadge(isPro: entitlements.isPro)
+                }
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -118,6 +125,7 @@ struct SettingsView: View {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
         case .agents: AgentsSettingsView(model: hooks, store: store)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier)
+        case .license: LicensePane(entitlements: entitlements)
         case .about: AboutPane()
         }
     }
@@ -351,6 +359,44 @@ struct AboutPane: View {
             Tile {
                 TileHeading(title: "Privacy",
                             subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files and hook events locally and sends nothing anywhere.")
+            }
+        }
+    }
+}
+
+// MARK: - License
+
+/// "Free" or "Pro" under the app name in the sidebar.
+private struct PlanBadge: View {
+    let isPro: Bool
+
+    var body: some View {
+        Text(isPro ? "Pro" : "Free")
+            .font(Theme.font(10, .semibold))
+            .padding(.horizontal, 7).padding(.vertical, 2)
+            .foregroundStyle(isPro ? Theme.onColor : Theme.ink)
+            .background(Capsule().fill(isPro ? Theme.green : Theme.canvas2))
+            .accessibilityLabel(isPro ? "Plan: Pro" : "Plan: Free")
+    }
+}
+
+/// Stub until keys can be checked (M3.2): says which plan this is and what Pro adds.
+@MainActor
+struct LicensePane: View {
+    let entitlements: Entitlements
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            PaneTitle(title: "License")
+            Tile(fill: entitlements.isPro ? Theme.green : Theme.surface, onColor: entitlements.isPro) {
+                TileHeading(title: entitlements.isPro ? "You're on Pro" : "You're on Free",
+                            subtitle: entitlements.isPro
+                                ? "Thanks for supporting OpusBar."
+                                : "Sessions, live states, the cat and notifications are free. Pro adds jumping to a session's window and Usage and Spend, for a one-time \(Entitlements.proPrice). No account.")
+            }
+            if !entitlements.isPro {
+                Text("Entering a license key arrives in the next build.")
+                    .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 4)
             }
         }
     }

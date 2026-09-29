@@ -12,6 +12,9 @@ struct SessionRowView: View {
     var isExpanded = false
     /// Whether this session's agent already has OpusBar hooks, which changes the hint for found-running rows.
     var agentConnected = false
+    var isPro = false
+    /// Free only: opens the License pane from the Pro hint.
+    var unlock: () -> Void = {}
     var onTap: () -> Void = {}
 
     /// Charcoal text on brand fills (AA on yellow and red).
@@ -24,7 +27,8 @@ struct SessionRowView: View {
         VStack(alignment: .leading, spacing: 10) {
             summary
             if isExpanded {
-                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
+                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected,
+                               isPro: isPro, unlock: unlock)
                     .transition(.opacity)
             }
         }
@@ -122,6 +126,8 @@ private struct SessionDetails: View {
     let now: Date
     let secondary: AnyShapeStyle
     let agentConnected: Bool
+    let isPro: Bool
+    let unlock: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -151,6 +157,14 @@ private struct SessionDetails: View {
                 .disabled(session.cwd.isEmpty)
             }
             .controlSize(.small)
+            if !isPro {
+                // Where Jump to session will be (M3.3).
+                HStack(spacing: 6) {
+                    Text(Entitlements.hint(for: "Jump to session"))
+                        .font(Theme.font(11, .regular)).foregroundStyle(secondary)
+                    Button("Unlock…", action: unlock).buttonStyle(.link).font(Theme.font(11, .semibold))
+                }
+            }
         }
         .padding(.leading, 52) // lines up with the text column, past the cat tile
     }

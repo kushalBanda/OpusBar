@@ -33,7 +33,7 @@ final class StatusItemController: NSObject {
     /// Composed status images keyed by frame + badge, so animation just swaps cached images.
     private var imageCache: [String: NSImage] = [:]
 
-    init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel,
+    init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel, entitlements: Entitlements,
          settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
         self.store = store
         self.preferences = preferences
@@ -43,7 +43,8 @@ final class StatusItemController: NSObject {
         popover.behavior = .transient // closes on any click outside
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks, layout: layout) { [weak self] pane in
+        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
+                                                                                       entitlements: entitlements, layout: layout) { [weak self] pane in
             self?.popover.performClose(nil)
             self?.settings.show(pane)
         })
