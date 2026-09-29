@@ -15,7 +15,7 @@ struct SessionListView: View {
         #if DEBUG
         // `--expand <session id prefix>` opens that card on launch, for screenshots.
         let args = ProcessInfo.processInfo.arguments
-        if let i = args.firstIndex(of: "--expand"), i + 1 < args.count { return args[i + 1] }
+        if let i = args.firstIndex(of: "--expand"), i + 1 < args.count, !args.contains("--expand-later") { return args[i + 1] }
         #endif
         return nil
     }()
@@ -54,6 +54,16 @@ struct SessionListView: View {
         }
         .padding(10)
         .frame(width: 344, alignment: .leading)
+        #if DEBUG
+        // `--expand-later` opens the `--expand` card 2 s after the list appears, like a click would.
+        .onAppear {
+            let args = ProcessInfo.processInfo.arguments
+            guard args.contains("--expand-later"), let i = args.firstIndex(of: "--expand"), i + 1 < args.count else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                withAnimation(reduceMotion ? nil : Self.spring) { expandedId = args[i + 1] }
+            }
+        }
+        #endif
         .font(Theme.font(13))
         .environment(\.catAnimates, preferences.animateCat)
     }
@@ -145,9 +155,7 @@ struct SessionListView: View {
             SessionRowView(session: session, now: now,
                            showsBranch: preferences.naming == .folderAndBranch,
                            isExpanded: expandedId.map { session.id.hasPrefix($0) } ?? false,
-                           agentConnected: hooks.connectedAgents.contains(session.agent),
-                           isPro: entitlements.isPro,
-                           unlock: { openSettings(.license) }) {
+                           agentConnected: hooks.connectedAgents.contains(session.agent)) {
                 withAnimation(reduceMotion ? nil : Self.spring) {
                     expandedId = expandedId.map { session.id.hasPrefix($0) } == true ? nil : session.id
                 }

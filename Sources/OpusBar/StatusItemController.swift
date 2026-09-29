@@ -44,10 +44,11 @@ final class StatusItemController: NSObject {
         self.onOpen = onOpen
         super.init()
         content = MenuHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
-                                                           entitlements: entitlements, layout: layout) { [weak self] pane in
+                                                           entitlements: entitlements, layout: layout,
+                                                           openSettings: { [weak self] pane in
             self?.menu.cancelTracking()
             self?.settings.show(pane)
-        })
+        }))
         content.fit()
         let item = NSMenuItem()
         item.view = content
@@ -191,16 +192,40 @@ extension StatusItemController: NSMenuDelegate {
     }
 }
 
-/// Hosts SwiftUI in a menu item. A menu sizes items by their frame, so the frame follows the content
-/// whenever it changes (a card opens, Idle unfolds, sessions come and go).
+/// Hosts SwiftUI in a menu item. A menu lays out a custom row from the view's intrinsic height, not
+/// its frame, so the row height is measured from the content and reported there whenever the content
+/// changes (a card opens, Idle unfolds, sessions come and go). Reporting it only through the frame
+/// leaves the row at its open-time height and clips the top of the list.
 final class MenuHostingView<Content: View>: NSHostingView<Content> {
+    private var rowHeight: CGFloat?
+    /// True while `fit` measures, so the invalidations it causes don't schedule another pass.
+    private var measuring = false
+
+    override var intrinsicContentSize: NSSize {
+        guard let rowHeight else { return super.intrinsicContentSize }
+        return NSSize(width: NSView.noIntrinsicMetric, height: rowHeight)
+    }
+
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
+        guard !measuring else { return }
         DispatchQueue.main.async { [weak self] in self?.fit() }
     }
 
     func fit() {
+        measuring = true
+        defer { measuring = false }
+        // Measure the content itself, not the height last reported.
+        let reported = rowHeight
+        rowHeight = nil
         let size = fittingSize
-        if size.width > 0, size.height > 0, frame.size != size { setFrameSize(size) }
+        let height = ceil(size.height)
+        guard size.width > 0, height > 0 else { rowHeight = reported; return }
+        rowHeight = height
+        guard reported != height || frame.size != NSSize(width: size.width, height: height) else { return }
+        setFrameSize(NSSize(width: size.width, height: height))
+        super.invalidateIntrinsicContentSize()
+        layoutSubtreeIfNeeded()
+        superview?.layoutSubtreeIfNeeded()
     }
 }

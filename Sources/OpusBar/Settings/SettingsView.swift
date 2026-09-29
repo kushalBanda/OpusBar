@@ -233,6 +233,7 @@ struct GeneralPane: View {
                 }
                 .padding(.top, 4)
             }
+
             Text("With Reduce Motion on, the cat always holds still.")
                 .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 8)
         }
@@ -398,7 +399,7 @@ struct LicensePane: View {
     private var pro: some View {
         VStack(alignment: .leading, spacing: 8) {
             Tile(fill: Theme.green, onColor: true) {
-                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Jump to session and Usage and Spend are yours.")
+                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Usage and Spend is yours.")
             }
             if let license = entitlements.license {
                 Tile {
@@ -418,7 +419,7 @@ struct LicensePane: View {
             Tile {
                 HStack(alignment: .center, spacing: 16) {
                     TileHeading(title: "You're on Free",
-                                subtitle: "Sessions, live states, the cat and notifications are free. Pro adds jumping to a session's window and Usage and Spend, for a one-time \(Entitlements.proPrice). No account.")
+                                subtitle: "Sessions, live states, the cat and notifications are free. Pro adds Usage and Spend: tokens and cost per project, model and day, for a one-time \(Entitlements.proPrice). No account.")
                     Spacer(minLength: 0)
                     if let checkout = entitlements.checkoutURL {
                         Button("Buy Pro") { NSWorkspace.shared.open(checkout) }

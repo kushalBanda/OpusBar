@@ -1,6 +1,6 @@
 # 13. Pro perks for v1 and license key policy
 
-- Status: Accepted (amends 10; store and price amended by 14)
+- Status: Accepted (amends 10; store and price amended by 14; jump to session removed by 15)
 - Date: 2026-09-29
 
 ## Context

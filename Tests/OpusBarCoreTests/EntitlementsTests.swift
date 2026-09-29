@@ -71,7 +71,7 @@ final class EntitlementsTests: XCTestCase {
     }
 
     func testHintNamesFeatureAndPrice() {
-        XCTAssertEqual(Entitlements.hint(for: "Jump to session"), "Jump to session is Pro · one-time $6.99")
+        XCTAssertEqual(Entitlements.hint(for: "Usage and Spend"), "Usage and Spend is Pro · one-time $6.99")
     }
 }
 

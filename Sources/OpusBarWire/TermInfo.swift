@@ -1,4 +1,4 @@
-/// Terminal identifiers used later to jump to a session. Only these four variables are read.
+/// Terminal identifiers, used to name where a session runs. Only these four variables are read.
 public struct TermInfo: Codable, Equatable, Sendable {
     public var termProgram: String?
     public var termSessionId: String?
