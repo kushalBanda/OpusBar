@@ -18,7 +18,10 @@ let package = Package(
         .executableTarget(
             name: "OpusBar",
             dependencies: ["OpusBarCore", "OpusBarWire"],
-            resources: [.copy("Resources/oneko-classic.png"), .copy("Resources/CREDITS.md")]
+            resources: [
+                .copy("Resources/oneko-classic.png"), .copy("Resources/CREDITS.md"),
+                .copy("Resources/InterVariable.ttf"), .copy("Resources/Inter-LICENSE.txt"),
+            ]
         ),
         .testTarget(name: "OpusBarWireTests", dependencies: ["OpusBarWire"]),
         .testTarget(name: "OpusBarCoreTests", dependencies: ["OpusBarCore", "OpusBarWire"]),

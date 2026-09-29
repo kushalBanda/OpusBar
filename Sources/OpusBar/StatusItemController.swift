@@ -13,7 +13,10 @@ final class StatusItemController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private let popover = NSPopover()
     private let store: SessionStore
-    private let settings = SettingsWindowController()
+    /// Called each time the dropdown opens (fresh discovery pass).
+    private let onOpen: () -> Void
+    private let settings: SettingsWindowController
+    private let preferences: Preferences
     /// Local key monitor, installed only while the popover is open, so Esc closes it.
     private var escMonitor: Any?
 
@@ -22,18 +25,23 @@ final class StatusItemController: NSObject {
     private var frameIndex = 0
     private var lastActivity = Date()
     private var frameTimer: Timer?
+    private var catAnimates = true
     /// Composed status images keyed by frame + badge, so animation just swaps cached images.
     private var imageCache: [String: NSImage] = [:]
 
-    init(store: SessionStore) {
+    init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel,
+         settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
         self.store = store
+        self.preferences = preferences
+        self.settings = settings
+        self.onOpen = onOpen
         super.init()
         popover.behavior = .transient // closes on any click outside
         popover.animates = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
         popover.delegate = self
-        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store) { [weak self] in
+        popover.contentViewController = NSHostingController(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks) { [weak self] pane in
             self?.popover.performClose(nil)
-            self?.settings.show()
+            self?.settings.show(pane)
         })
         if let button = statusItem.button {
             button.target = self
@@ -48,17 +56,19 @@ final class StatusItemController: NSObject {
     }
 
     /// Any session change counts as activity; re-arms itself after each change.
+    /// The Motion setting is tracked too, so turning it off stops the cat at once.
     private func observeStore() {
-        let (_, aggregate) = withObservationTracking {
-            (store.state, store.aggregate)
+        let (_, aggregate, animates) = withObservationTracking {
+            (store.state, store.aggregate, preferences.animateCat)
         } onChange: {
             Task { @MainActor [weak self] in self?.observeStore() }
         }
         self.aggregate = aggregate
         lastActivity = Date()
         let next = CatAnimation.for(aggregate.state)
-        if next != animation || frameTimer == nil {
+        if next != animation || frameTimer == nil || animates != catAnimates {
             animation = next
+            catAnimates = animates
             restartFrames()
         } else {
             draw()
@@ -75,7 +85,7 @@ final class StatusItemController: NSObject {
         frameTimer = nil
         frameIndex = 0
         draw()
-        guard animation.isAnimated, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
+        guard animation.isAnimated, catAnimates, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
         let interval = max(animation.interval, Self.minFrameInterval)
         let timer = Timer(timeInterval: interval, repeats: true) { _ in
             Task { @MainActor [weak self] in self?.tick() }
@@ -154,11 +164,20 @@ final class StatusItemController: NSObject {
         }
     }
 
+    var isMenuShown: Bool { popover.isShown }
+
+    /// Opens the dropdown without a click (notification click, and `--menu` in debug builds).
+    func showMenu() {
+        guard !popover.isShown, let button = statusItem.button else { return }
+        toggle(button)
+    }
+
     @objc private func toggle(_ sender: NSStatusBarButton) {
         if popover.isShown {
             popover.performClose(sender)
         } else {
             // Accessory apps are never active on their own; without this the popover can't take Esc.
+            onOpen()
             NSApp.activate(ignoringOtherApps: true)
             popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
@@ -176,6 +195,8 @@ extension StatusItemController: NSPopoverDelegate {
     }
 
     func popoverDidClose(_ notification: Notification) {
+        // Done is "finished, not yet seen": once the menu showed it, it goes back to Idle.
+        store.acknowledgeDone(seenAt: Date())
         if let escMonitor { NSEvent.removeMonitor(escMonitor) }
         escMonitor = nil
     }

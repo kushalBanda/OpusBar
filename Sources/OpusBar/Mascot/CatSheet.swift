@@ -14,7 +14,7 @@ struct CatAnimation: Equatable {
     }
 
     static let idle = CatAnimation(frames: [(3, 3)], interval: 0)                          // sits
-    static let working = CatAnimation(frames: [(3, 0), (3, 1)], interval: 0.11)            // runs in place
+    static let working = CatAnimation(frames: [(3, 0), (3, 1)], interval: 0.3)             // runs in place, an easy trot
     static let thinking = CatAnimation(frames: [(5, 0), (6, 0), (7, 0), (6, 0)], interval: 0.22) // grooms
     static let attention = CatAnimation(frames: [(7, 3)], interval: 0)                     // alert, ears up
     static let done = CatAnimation(frames: [(2, 0), (2, 1)], interval: 0.7)               // naps

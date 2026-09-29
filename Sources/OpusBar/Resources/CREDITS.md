@@ -6,3 +6,8 @@ covers their code; the sprite art is credited to its original creators and was n
 Re-check provenance before a paid release (see docs/plans/opusbar-v1/01-product.md).
 
 Layout: 256 x 128 PNG, 8 x 4 grid of 32 px frames (oneko.js layout).
+
+# Font credits
+
+`InterVariable.ttf`: Inter 4.1 by Rasmus Andersson and the Inter Project Authors
+(https://github.com/rsms/inter), SIL Open Font License 1.1. Full license in `Inter-LICENSE.txt`.

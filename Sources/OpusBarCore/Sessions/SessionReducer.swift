@@ -19,12 +19,14 @@ public enum SessionReducer {
         }
 
         var session = state.byId[e.sessionId]
-            ?? Session(id: e.sessionId, cwd: e.cwd ?? "", startedAt: now)
+            ?? Session(id: e.sessionId, agent: event.agent ?? .claude, cwd: e.cwd ?? "", startedAt: now)
         // Async hooks can arrive out of order; drop anything older than what we have applied.
         guard event.ts >= session.lastEventTs else { return state }
 
         session.lastEventTs = event.ts
         session.lastEventAt = now
+        if let agent = event.agent { session.agent = agent }
+        session.isDiscovered = false
         if let pid = event.pid { session.pid = pid }
         if let term = event.term { session.term = term }
         if let cwd = e.cwd, !cwd.isEmpty, cwd != session.cwd {
@@ -66,6 +68,18 @@ public enum SessionReducer {
         }
 
         state.byId[session.id] = session
+        return state
+    }
+
+    /// The user has seen these done sessions (the menu was open): Done turns back to Idle, so the
+    /// menu bar ✓ and the green card clear. Sessions that finished after `seenAt` keep their Done.
+    public static func acknowledgeDone(_ state: SessionsState, seenAt: Date, now: Date) -> SessionsState {
+        var state = state
+        for (id, session) in state.byId where session.state == .done && session.stateSince <= seenAt {
+            var session = session
+            session.transition(to: .idle, detail: nil, now: now)
+            state.byId[id] = session
+        }
         return state
     }
 

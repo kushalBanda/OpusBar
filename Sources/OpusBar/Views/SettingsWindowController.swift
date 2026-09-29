@@ -1,4 +1,5 @@
 import AppKit
+import OpusBarCore
 import SwiftUI
 
 /// Owns the one Settings window. An AppKit window, not the SwiftUI `Settings` scene:
@@ -6,32 +7,37 @@ import SwiftUI
 @MainActor
 final class SettingsWindowController {
     private var window: NSWindow?
+    private let navigation = SettingsNavigation()
+    private let hooks: AgentHooksModel
+    private let preferences: Preferences
+    private let launchAtLogin = LaunchAtLogin()
+    private let notifier: SessionNotifier
 
-    func show() {
+    init(hooks: AgentHooksModel, preferences: Preferences, notifier: SessionNotifier) {
+        self.hooks = hooks
+        self.preferences = preferences
+        self.notifier = notifier
+    }
+
+    func show(_ pane: SettingsPane? = nil) {
+        if let pane { navigation.pane = pane }
         if window == nil {
-            let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsStubView()))
+            let root = SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
+                                    launchAtLogin: launchAtLogin, notifier: notifier)
+            let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "OpusBar Settings"
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .fullSizeContentView]
+            window.titlebarAppearsTransparent = true
+            window.titleVisibility = .hidden
+            window.isMovableByWindowBackground = true
             window.isReleasedWhenClosed = false
             window.center()
             self.window = window
         }
+        hooks.refresh()
+        launchAtLogin.refresh()
+        notifier.refreshAccess()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
-    }
-}
-
-/// M1 placeholder. The real panes (General, Hooks, Notifications, License, About) arrive in M2.
-struct SettingsStubView: View {
-    var body: some View {
-        VStack(spacing: 10) {
-            CatView(state: .idle, points: 64)
-            Text("Settings arrive in M2").font(.headline)
-            Text("Hooks, notifications and launch at login live here next.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(40)
-        .frame(width: 420)
     }
 }

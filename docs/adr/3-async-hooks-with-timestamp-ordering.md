@@ -1,6 +1,6 @@
 # 3. Async hooks, ordered by hook-start timestamp
 
-- Status: Accepted
+- Status: Accepted (amended by 12 for Codex)
 - Date: 2026-09-28
 
 ## Context

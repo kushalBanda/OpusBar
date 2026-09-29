@@ -39,9 +39,55 @@ public final class SessionStore {
     public func apply(_ event: WireEvent) {
         var next = SessionReducer.reduce(state, event, now: now())
         let id = event.e.sessionId
+        // The hook now names this process's session; its discovered placeholder row goes.
+        if let pid = event.pid, DiscoveredProcess.sessionId(pid: pid) != id,
+           next.byId[DiscoveredProcess.sessionId(pid: pid)]?.isDiscovered == true {
+            next.byId[DiscoveredProcess.sessionId(pid: pid)] = nil
+        }
         if var session = next.byId[id], Self.shouldReadBranch(event.e.event, old: state.byId[id], new: session) {
             session.branch = branchReader(session.cwd)
             next.byId[id] = session
+        }
+        set(next)
+    }
+
+    /// A discovered session counts as active while its session file changed within this window.
+    public static let activeWindow: TimeInterval = 120
+
+    /// Reconciles one discovery pass: adds or refreshes rows for agent processes no hook has reported,
+    /// drops discovered rows whose process is gone, and never touches hook-driven sessions.
+    public func applyDiscovery(_ found: [DiscoveredProcess]) {
+        let now = now()
+        var next = state
+        let hooked = next.byId.values.filter { !$0.isDiscovered }
+        let hookedPIDs = Set(hooked.compactMap(\.pid))
+        let hookedIds = Set(hooked.map(\.id))
+        let live = found.filter { !hookedPIDs.contains($0.pid) && !hookedIds.contains($0.sessionId) }
+        let liveIds = Set(live.map(\.sessionId))
+        // Drop rows whose process is gone, or whose id changed (pid row upgraded to the real session id).
+        for (id, session) in next.byId where session.isDiscovered && !liveIds.contains(id) {
+            next.byId[id] = nil
+        }
+        for process in live {
+            let cwd = process.cwd ?? ""
+            var session = next.byId[process.sessionId]
+                ?? Session(id: process.sessionId, agent: process.agent, cwd: cwd,
+                           startedAt: process.startedAt ?? now, pid: process.pid, isDiscovered: true)
+            if session.branch == nil || (!cwd.isEmpty && cwd != session.cwd) {
+                session.branch = cwd.isEmpty ? nil : branchReader(cwd)
+            }
+            if !cwd.isEmpty, cwd != session.cwd {
+                session.cwd = cwd
+                session.projectName = Session.projectName(for: cwd)
+            }
+            session.agent = process.agent
+            session.pid = process.pid
+            if let activity = process.record?.modifiedAt {
+                session.lastEventAt = activity
+                let active = now.timeIntervalSince(activity) <= Self.activeWindow
+                session.transition(to: active ? .working : .idle, detail: nil, now: now)
+            }
+            next.byId[process.sessionId] = session
         }
         set(next)
     }
@@ -54,6 +100,11 @@ public final class SessionStore {
         case .sessionStart, .userPromptSubmit, .stop: return true
         default: return false
         }
+    }
+
+    /// Called when the menu closes: every Done that was on screen counts as seen.
+    public func acknowledgeDone(seenAt: Date) {
+        set(SessionReducer.acknowledgeDone(state, seenAt: seenAt, now: now()))
     }
 
     public func prune() {

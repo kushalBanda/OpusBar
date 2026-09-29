@@ -158,4 +158,41 @@ final class SessionReducerTests: XCTestCase {
         XCTAssertEqual(s.subagents, 0)
         XCTAssertEqual(s.stateSince, t0.addingTimeInterval(10))
     }
+
+    func testAgentDefaultsToClaudeAndFollowsEvents() throws {
+        var state = SessionReducer.reduce(SessionsState(), WireEvent(ts: 1, e: ev(.sessionStart)), now: t0)
+        XCTAssertEqual(try only(state).agent, .claude)
+        state = SessionReducer.reduce(SessionsState(), WireEvent(ts: 1, agent: .codex, e: ev(.sessionStart)), now: t0)
+        XCTAssertEqual(try only(state).agent, .codex)
+        state = SessionReducer.reduce(state, WireEvent(ts: 2, e: ev(.userPromptSubmit)), now: t0)
+        XCTAssertEqual(try only(state).agent, .codex, "an event without agent keeps the known one")
+    }
+}
+
+final class AcknowledgeDoneTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_000)
+
+    func testSeenDoneTurnsIdleAndLaterDoneStays() {
+        let seen = Session(id: "a", cwd: "/p/a", state: .done, startedAt: t0, stateSince: t0)
+        let later = Session(id: "b", cwd: "/p/b", state: .done, startedAt: t0, stateSince: t0.addingTimeInterval(20))
+        let working = Session(id: "c", cwd: "/p/c", state: .working, startedAt: t0)
+        let state = SessionsState(byId: ["a": seen, "b": later, "c": working])
+
+        let next = SessionReducer.acknowledgeDone(state, seenAt: t0.addingTimeInterval(10), now: t0.addingTimeInterval(30))
+        XCTAssertEqual(next.byId["a"]?.state, .idle)
+        XCTAssertEqual(next.byId["a"]?.stateSince, t0.addingTimeInterval(30))
+        XCTAssertEqual(next.byId["b"]?.state, .done)
+        XCTAssertEqual(next.byId["c"]?.state, .working)
+    }
+
+    @MainActor
+    func testStoreClearsDoneBadgeAfterMenuCloses() {
+        var clock = t0
+        let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
+        store.apply(WireEvent(ts: 1, e: SlimEvent(sessionId: "s", event: .stop, cwd: "/p/s")))
+        XCTAssertEqual(store.aggregate.state, .done)
+        clock = t0.addingTimeInterval(5)
+        store.acknowledgeDone(seenAt: clock)
+        XCTAssertEqual(store.aggregate.state, .idle)
+    }
 }

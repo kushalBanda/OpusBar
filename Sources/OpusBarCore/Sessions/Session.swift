@@ -3,6 +3,7 @@ import OpusBarWire
 
 public struct Session: Identifiable, Equatable, Sendable {
     public let id: String
+    public var agent: AgentKind
     public var cwd: String
     public var projectName: String
     public var branch: String?
@@ -17,9 +18,12 @@ public struct Session: Identifiable, Equatable, Sendable {
     public var lastEventTs: Int64
     public var pid: Int32?
     public var term: TermInfo?
+    /// Found by process discovery, no hook event yet. Its id is `pid:<n>` until a hook names it.
+    public var isDiscovered: Bool
 
     public init(
         id: String,
+        agent: AgentKind = .claude,
         cwd: String,
         branch: String? = nil,
         state: SessionState = .idle,
@@ -30,9 +34,11 @@ public struct Session: Identifiable, Equatable, Sendable {
         lastEventAt: Date? = nil,
         lastEventTs: Int64 = .min,
         pid: Int32? = nil,
-        term: TermInfo? = nil
+        term: TermInfo? = nil,
+        isDiscovered: Bool = false
     ) {
         self.id = id
+        self.agent = agent
         self.cwd = cwd
         self.projectName = Self.projectName(for: cwd)
         self.branch = branch
@@ -45,6 +51,7 @@ public struct Session: Identifiable, Equatable, Sendable {
         self.lastEventTs = lastEventTs
         self.pid = pid
         self.term = term
+        self.isDiscovered = isDiscovered
     }
 
     static func projectName(for cwd: String) -> String {

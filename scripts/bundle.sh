@@ -27,7 +27,8 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/OpusBar" "$APP/Contents/MacOS/OpusBar"
 cp "$BIN/opusbar-hook" "$APP/Contents/Helpers/opusbar-hook"
 # Flat copies so Bundle.main finds them; the SwiftPM resource bundle is only for `swift run`.
-cp Sources/OpusBar/Resources/oneko-classic.png Sources/OpusBar/Resources/CREDITS.md "$APP/Contents/Resources/"
+cp Sources/OpusBar/Resources/oneko-classic.png Sources/OpusBar/Resources/CREDITS.md \
+   Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt "$APP/Contents/Resources/"
 
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
@@ -45,7 +46,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>LSUIElement</key><true/>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
-  <key>NSHumanReadableCopyright</key><string>Mascot: oneko sprites, MIT. See CREDITS.md.</string>
+  <key>NSHumanReadableCopyright</key><string>Copyright © 2026 OpusBar</string>
 </dict>
 </plist>
 PLIST

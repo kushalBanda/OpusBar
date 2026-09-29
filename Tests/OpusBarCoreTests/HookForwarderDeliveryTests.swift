@@ -24,6 +24,7 @@ final class HookForwarderDeliveryTests: XCTestCase {
 
         let code = HookForwarder.run(
             stdin: pipe.fileHandleForReading,
+            arguments: ["--agent", "codex"],
             environment: ["TERM_PROGRAM": "Apple_Terminal"],
             parentPID: 321,
             nowMs: { 77 },
@@ -34,6 +35,7 @@ final class HookForwarderDeliveryTests: XCTestCase {
         let event = try XCTUnwrap(box.get())
         XCTAssertEqual(event.ts, 77)
         XCTAssertEqual(event.pid, 321)
+        XCTAssertEqual(event.agent, .codex)
         XCTAssertEqual(event.term?.termProgram, "Apple_Terminal")
         XCTAssertEqual(event.e, SlimEvent(sessionId: "live", event: .preToolUse, cwd: "/p", toolName: "Edit"))
     }

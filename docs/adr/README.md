@@ -14,6 +14,8 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [8](8-git-branch-from-head-file.md) | Git branch read from .git/HEAD | Accepted |
 | [9](9-oneko-mascot-and-animation-budget.md) | oneko mascot, 4 fps menu bar cap, 30 s stop | Accepted |
 | [10](10-one-time-pro-unlock.md) | One-time $5 Pro unlock behind Entitlements | Accepted (M3) |
+| [11](11-agents-discovery-plus-integrations.md) | Four agents (Claude Code, Codex, pi, OMP): discovery + integrations | Accepted |
+| [12](12-codex-hooks-synchronous.md) | Codex hooks run synchronously (amends 3) | Accepted |
 
 Template:
 

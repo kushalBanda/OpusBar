@@ -1,10 +1,12 @@
 import OpusBarCore
+import OpusBarWire
 import SwiftUI
 
 /// One session card. Needs-you and error cards fill yellow or red so they read from across the room.
 struct SessionRowView: View {
     let session: Session
     let now: Date
+    var showsBranch = false
 
     /// Charcoal text on brand fills (AA on yellow and red).
     private static let onColor = Color(red: 0.173, green: 0.18, blue: 0.165)
@@ -19,23 +21,28 @@ struct SessionRowView: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(isLoud ? Self.tileLight : session.state.tileColor))
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(session.projectName).font(.body.weight(.semibold)).lineLimit(1)
-                    if let branch = session.branch {
-                        Text(branch).font(.caption).foregroundStyle(secondary).lineLimit(1).truncationMode(.middle)
+                    Text(session.projectName).font(Theme.font(13, .semibold)).lineLimit(1).layoutPriority(1)
+                    AgentMark(agent: session.agent)
+                    if showsBranch, let branch = session.branch {
+                        Text(branch).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1).truncationMode(.middle)
                     }
                 }
-                Text(detailLine).font(.caption).foregroundStyle(secondary).lineLimit(1)
+                Text(detailLine).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1)
             }
+            .layoutPriority(1)
             Spacer(minLength: 4)
             Text(Self.elapsed(from: session.stateSince, to: now))
-                .font(.caption.monospacedDigit())
+                .font(Theme.font(11).monospacedDigit())
                 .foregroundStyle(secondary)
+                .fixedSize()
                 .frame(maxHeight: .infinity, alignment: .top)
         }
         .foregroundStyle(isLoud ? AnyShapeStyle(Self.onColor) : AnyShapeStyle(.primary))
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 16).fill(isLoud ? session.state.tileColor : Color.primary.opacity(0.05)))
-        .help("\(session.cwd)\nSubagents: \(session.subagents)")
+        .help(session.isDiscovered
+              ? "\(session.cwd)\nFound running (pid \(session.pid ?? 0)). Connect \(session.agent.displayName) in Settings for live states."
+              : "\(session.cwd)\nSubagents: \(session.subagents)")
         .accessibilityElement(children: .combine)
     }
 
@@ -47,7 +54,16 @@ struct SessionRowView: View {
         let extras = [session.detail, session.subagents > 0 ? "\(session.subagents) subagent\(session.subagents == 1 ? "" : "s")" : nil]
             .compactMap { $0 }
             .joined(separator: ", ")
-        return extras.isEmpty ? session.state.label : "\(session.state.label) · \(extras)"
+        // Discovered rows have no live state until the agent's hooks report in.
+        let label = Self.label(for: session)
+        return extras.isEmpty ? label : "\(label) · \(extras)"
+    }
+
+    /// Discovered rows: "Running" until a session file is matched, then "Active" or "Idle" from its activity.
+    static func label(for session: Session) -> String {
+        guard session.isDiscovered else { return session.state.label }
+        if session.id.hasPrefix("pid:") { return "Running" }
+        return session.state == .working ? "Active" : "Idle"
     }
 
     static func elapsed(from start: Date, to now: Date) -> String {
@@ -57,3 +73,21 @@ struct SessionRowView: View {
         return "\(seconds)s"
     }
 }
+
+/// Which agent a card belongs to: a small outlined label, readable on every tile color.
+struct AgentMark: View {
+    let agent: AgentKind
+
+    var body: some View {
+        Text(agent.displayName)
+            .font(Theme.font(10, .semibold))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .overlay(Capsule().strokeBorder(lineWidth: 1).opacity(0.35))
+            .opacity(0.8)
+            .accessibilityLabel("Agent: \(agent.displayName)")
+    }
+}
+

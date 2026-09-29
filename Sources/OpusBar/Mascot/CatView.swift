@@ -7,10 +7,11 @@ struct CatView: View {
     var points: CGFloat = 32
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.catAnimates) private var catAnimates
 
     var body: some View {
         let animation = CatAnimation.for(state)
-        if animation.isAnimated && !reduceMotion {
+        if animation.isAnimated && catAnimates && !reduceMotion {
             TimelineView(.animation(minimumInterval: animation.interval)) { context in
                 frame(animation, index: Int(context.date.timeIntervalSinceReferenceDate / animation.interval))
             }

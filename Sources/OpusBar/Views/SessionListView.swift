@@ -5,15 +5,21 @@ import SwiftUI
 @MainActor
 struct SessionListView: View {
     let store: SessionStore
-    var openSettings: () -> Void = {}
+    let preferences: Preferences
+    let hooks: AgentHooksModel
+    var openSettings: (SettingsPane?) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Sessions").font(.title2.weight(.semibold))
-                Text(summary).font(.caption).foregroundStyle(.secondary)
+                Text("Sessions").font(Theme.font(17, .semibold))
+                Text(summary).font(Theme.font(11, .regular)).foregroundStyle(.secondary)
             }
             .padding(.horizontal, 4)
+            if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
+                                         dismissed: preferences.connectCardDismissed) {
+                ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })
+            }
             if store.sessions.isEmpty {
                 EmptySessionsView()
             } else {
@@ -21,19 +27,21 @@ struct SessionListView: View {
                 TimelineView(.periodic(from: .now, by: 1)) { context in
                     VStack(spacing: 6) {
                         ForEach(store.sessions) { session in
-                            SessionRowView(session: session, now: context.date)
+                            SessionRowView(session: session, now: context.date, showsBranch: preferences.naming == .folderAndBranch)
                         }
                     }
                 }
             }
             Divider()
             VStack(spacing: 0) {
-                MenuItemRow(title: "Settings…", systemImage: "gearshape", action: openSettings)
+                MenuItemRow(title: "Settings…", systemImage: "gearshape", action: { openSettings(nil) })
                 MenuItemRow(title: "Quit OpusBar", systemImage: "power") { NSApp.terminate(nil) }
             }
         }
         .padding(10)
         .frame(width: 344, alignment: .leading)
+        .font(Theme.font(13))
+        .environment(\.catAnimates, preferences.animateCat)
     }
 
     private var summary: String {
@@ -50,9 +58,9 @@ private struct EmptySessionsView: View {
             CatView(state: nil)
                 .frame(width: 40, height: 40)
                 .background(RoundedRectangle(cornerRadius: 12).fill(SessionState.idle.tileColor))
-            Text("Nothing running").font(.body.weight(.semibold))
-            Text("Start `claude` in any terminal and it shows up here.")
-                .font(.caption)
+            Text("Nothing running").font(Theme.font(13, .semibold))
+            Text("Start Claude Code, Codex, pi or OMP in any terminal and it shows up here.")
+                .font(Theme.font(11, .regular))
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
         }
@@ -60,6 +68,36 @@ private struct EmptySessionsView: View {
         .padding(.vertical, 22)
         .padding(.horizontal, 16)
         .background(RoundedRectangle(cornerRadius: 16).fill(Color.primary.opacity(0.05)))
+    }
+}
+
+/// First run: sessions already show up via discovery; connecting hooks adds live states.
+/// Shown until an agent is connected or the user picks "Not now".
+private struct ConnectCard: View {
+    let connect: () -> Void
+    let dismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            CatView(state: .needsAttention)
+                .frame(width: 40, height: 40)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.tileLight))
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Get live states").font(Theme.font(13, .semibold))
+                Text("Connect Claude Code or Codex so OpusBar sees when a session is thinking, working or needs you.")
+                    .font(Theme.font(11, .regular)).opacity(0.72).fixedSize(horizontal: false, vertical: true)
+                HStack(spacing: 8) {
+                    Button("Connect…", action: connect).buttonStyle(.borderedProminent).tint(Theme.onColor)
+                    Button("Not now", action: dismiss).buttonStyle(.borderless).foregroundStyle(Theme.onColor)
+                }
+                .controlSize(.small)
+                .padding(.top, 4)
+            }
+        }
+        .foregroundStyle(Theme.onColor)
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 16).fill(Theme.pink))
     }
 }
 
