@@ -3,7 +3,7 @@ import Observation
 import OpusBarCore
 import OpusBarWire
 
-/// Every hooks file OpusBar can connect (Claude profiles, Codex) and its status, for Settings.
+/// Everything OpusBar can connect (Claude profiles, Codex, pi, OMP) and its status, for Settings.
 /// Install and uninstall run only on a user click.
 @MainActor @Observable
 final class AgentHooksModel {
@@ -47,15 +47,16 @@ final class AgentHooksModel {
     func refresh() {
         let targets = ClaudeProfiles.all(environment: environment, userAdded: userAddedFolders).map(HookTarget.claude)
             + [HookTarget.codex(environment: environment)].compactMap { $0 }
-        rows = targets.map { Row(target: $0, status: $0.installer(paths: paths).status()) }
+            + HookTarget.piFamily(.pi, environment: environment) + HookTarget.piFamily(.omp, environment: environment)
+        rows = targets.map { Row(target: $0, status: $0.status(paths: paths)) }
     }
 
     func install(_ target: HookTarget) {
-        run { try target.installer(paths: self.paths).install(hookSource: Self.bundledHook()) }
+        run(target) { try target.install(paths: self.paths, hookSource: Self.bundledHook()) }
     }
 
     func uninstall(_ target: HookTarget) {
-        run { try target.installer(paths: self.paths).uninstall() }
+        run(target) { try target.uninstall(paths: self.paths) }
     }
 
     func addClaudeFolder() {
@@ -107,10 +108,12 @@ final class AgentHooksModel {
         refresh()
     }
 
-    private func run(_ action: () throws -> HookInstaller.Status) {
+    private func run(_ target: HookTarget, _ action: () throws -> HookInstaller.Status) {
         do {
             _ = try action()
             lastError = nil
+        } catch HookInstaller.InstallError.unreadable(let reason) where target.isExtension {
+            lastError = "\(reason) in \(target.fileURL.deletingLastPathComponent().path), and it isn't OpusBar's. Rename or remove it, then connect again."
         } catch HookInstaller.InstallError.unreadable(let reason) {
             lastError = "The hooks file can't be read (\(reason)). Fix it by hand; OpusBar won't touch it."
         } catch {

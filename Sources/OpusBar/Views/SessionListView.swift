@@ -229,7 +229,7 @@ private struct ConnectCard: View {
                 .background(RoundedRectangle(cornerRadius: 12).fill(Theme.tileLight))
             VStack(alignment: .leading, spacing: 4) {
                 Text("Get live states").font(Theme.font(13, .semibold))
-                Text("Connect Claude Code or Codex so OpusBar sees when a session is thinking, working or needs you.")
+                Text("Connect Claude Code, Codex or pi so OpusBar sees when a session is thinking, working or needs you.")
                     .font(Theme.font(11, .regular)).opacity(0.72).fixedSize(horizontal: false, vertical: true)
                 HStack(spacing: 8) {
                     Button("Connect…", action: connect).buttonStyle(.borderedProminent).tint(Theme.onColor)

@@ -8,6 +8,9 @@ public enum SessionReducer {
         "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
     ]
 
+    /// Stop reason the pi/OMP extension sends for an interrupted turn.
+    public static let abortedReason = "aborted"
+
     public static func reduce(_ state: SessionsState, _ event: WireEvent, now: Date) -> SessionsState {
         var state = state
         let e = event.e
@@ -15,8 +18,15 @@ public enum SessionReducer {
         // SessionEnd always wins, even if it arrives out of order.
         if e.event == .sessionEnd {
             state.byId[e.sessionId] = nil
+            state.endedAt[e.sessionId] = max(state.endedAt[e.sessionId] ?? .min, event.ts)
+            if state.endedAt.count > SessionsState.endedKept,
+               let oldest = state.endedAt.min(by: { $0.value < $1.value })?.key {
+                state.endedAt[oldest] = nil
+            }
             return state
         }
+        // Sent before this session ended, delivered after.
+        if let ended = state.endedAt[e.sessionId], event.ts <= ended { return state }
 
         var session = state.byId[e.sessionId]
             ?? Session(id: e.sessionId, agent: event.agent ?? .claude, cwd: e.cwd ?? "", startedAt: now)
@@ -61,7 +71,8 @@ public enum SessionReducer {
         case .subagentStop:
             session.subagents = max(0, session.subagents - 1)
         case .stop:
-            session.transition(to: .done, detail: nil, now: now)
+            // pi/OMP send `reason: aborted` when the user interrupted the turn: nothing finished.
+            session.transition(to: e.reason == Self.abortedReason ? .idle : .done, detail: nil, now: now)
             session.subagents = 0
             session.turnStartedAt = nil
         case .stopFailure:
