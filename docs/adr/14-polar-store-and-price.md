@@ -1,6 +1,6 @@
 # 14. Polar as the store, $6.99 one-time
 
-- Status: Accepted (amends 10 and 13)
+- Status: Superseded by 22
 - Date: 2026-09-29
 
 ## Context

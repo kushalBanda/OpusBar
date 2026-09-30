@@ -3,13 +3,10 @@ import OpusBarCore
 import OpusBarWire
 import SwiftUI
 
-/// Usage and Spend: tokens and API value from the agents' own logs on this Mac. The last 24 hours is
-/// free; longer ranges and the daily bars are Pro (gated only through `UsageRange.isAvailable`).
+/// Usage and Spend: tokens and API value from the agents' own logs on this Mac, over 24 hours to 90 days.
 @MainActor
 struct UsagePane: View {
     let usage: UsageModel
-    let entitlements: Entitlements
-    let openLicense: () -> Void
     @State private var range: UsageRange = {
         #if DEBUG
         // `--usage-range <day|week|month|quarter>` opens that range, for screenshots.
@@ -26,15 +23,11 @@ struct UsagePane: View {
             PaneTitle(title: "Usage and Spend",
                       lead: "What your Claude Code and Codex replies would cost at API list prices, read from their logs on this Mac.")
             HStack {
-                ChipPicker(options: UsageRange.allCases, selection: $range) { range in
-                    range.isAvailable(isPro: entitlements.isPro) ? range.label : range.label + " · Pro"
-                }
+                ChipPicker(options: UsageRange.allCases, selection: $range) { $0.label }
                 Spacer()
             }
             .padding(.bottom, 4)
-            if !range.isAvailable(isPro: entitlements.isPro) {
-                UnlockTile(range: range, openLicense: openLicense)
-            } else if let summary = usage.summaries[range] {
+            if let summary = usage.summaries[range] {
                 if summary.total.replies == 0 {
                     Tile { TileHeading(title: "No usage in this range", subtitle: "Replies show up here as your agents work.") }
                 } else {
@@ -95,25 +88,6 @@ struct UsagePane: View {
     }
 }
 
-/// Free, on a Pro range: what the range adds and the way to Pro.
-private struct UnlockTile: View {
-    let range: UsageRange
-    let openLicense: () -> Void
-
-    var body: some View {
-        Tile {
-            HStack(alignment: .center, spacing: 16) {
-                TileHeading(title: "\(range.label) is Pro",
-                            subtitle: "Pro shows 7, 30 and 90 days with daily bars, for a one-time \(Entitlements.proPrice). The last 24 hours stays free.")
-                Spacer(minLength: 0)
-                Button("Unlock…", action: openLicense)
-                    .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
-            }
-        }
-    }
-}
-
-/// Where the tokens went: new input, cache writes, cache reads, output, and the cache hit rate.
 private struct TokenBreakdown: View {
     let tokens: UsageTokens
 

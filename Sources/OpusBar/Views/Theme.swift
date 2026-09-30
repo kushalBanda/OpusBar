@@ -207,8 +207,6 @@ struct SegmentedPicker<Value: Hashable>: View {
     let options: [Value]
     @Binding var selection: Value
     var size: CGFloat = 12
-    /// A trailing glyph per option (a lock on a Pro range); nil for none.
-    var badge: (Value) -> String? = { _ in nil }
     let label: (Value) -> String
     @Namespace private var pill
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -222,12 +220,7 @@ struct SegmentedPicker<Value: Hashable>: View {
                 Button {
                     if !on { selection = option }
                 } label: {
-                    HStack(spacing: 3) {
-                        Text(label(option)).font(Theme.font(size, on ? .semibold : .medium)).lineLimit(1)
-                        if let badge = badge(option) {
-                            Image(systemName: badge).font(.system(size: size - 3, weight: .semibold)).opacity(0.6)
-                        }
-                    }
+                    Text(label(option)).font(Theme.font(size, on ? .semibold : .medium)).lineLimit(1)
                     .padding(.horizontal, size * 0.8)
                     .padding(.vertical, size * 0.36)
                     .foregroundStyle(Theme.ink.opacity(on ? 1 : 0.6))

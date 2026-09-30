@@ -74,7 +74,7 @@ struct SessionRowView: View {
             .compactMap { $0 }
             .joined(separator: ", ")
         // Discovered rows have no live state until the agent's hooks report in.
-        let label = [Self.label(for: session), Self.distinctTitle(for: session), session.host?.appName]
+        let label = [Self.label(for: session), session.distinctTitle, session.host?.appName]
             .compactMap { $0 }.joined(separator: " · ")
         return extras.isEmpty ? label : "\(label) · \(extras)"
     }
@@ -103,12 +103,6 @@ struct SessionRowView: View {
         case .thinking, .working: session.turnStartedAt ?? session.stateSince
         default: session.stateSince
         }
-    }
-
-    /// The session's own name, unless it just repeats the folder name.
-    static func distinctTitle(for session: Session) -> String? {
-        guard let title = session.title, title.caseInsensitiveCompare(session.projectName) != .orderedSame else { return nil }
-        return title
     }
 
     static func elapsed(from start: Date, to now: Date) -> String {

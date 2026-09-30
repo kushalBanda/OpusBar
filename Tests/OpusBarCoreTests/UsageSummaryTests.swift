@@ -46,11 +46,6 @@ final class UsageSummaryTests: XCTestCase {
         XCTAssertEqual(UsageSummary.make(records: records, range: .week, now: now, calendar: calendar).trend.count, 7)
     }
 
-    func testOnlyTwentyFourHoursIsFree() {
-        XCTAssertEqual(UsageRange.allCases.filter { $0.isAvailable(isPro: false) }, [.day])
-        XCTAssertEqual(UsageRange.allCases.filter { $0.isAvailable(isPro: true) }, UsageRange.allCases)
-    }
-
     func testTotalsAndBreakdownsRankedByCost() {
         let records = [
             record("2026-09-30T10:00:00Z", project: "quant", cost: 3),

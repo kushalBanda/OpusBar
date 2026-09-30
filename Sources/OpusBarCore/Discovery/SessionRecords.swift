@@ -15,18 +15,22 @@ public struct SessionRecord: Equatable, Sendable {
     public var path: String
     /// The session's own name (e.g. Claude's `quant-8d`), to tell apart sessions in one folder.
     public var title: String?
+    /// Claude made the name up (`nameSource: "derived"`: the folder plus two random characters) rather
+    /// than the user giving it with /rename. Such names mean little in a row.
+    public var titleIsDerived: Bool
     public var status: LiveStatus?
     /// When the agent last changed `status`.
     public var statusAt: Date?
 
     public init(id: String, agent: AgentKind, cwd: String?, modifiedAt: Date, path: String,
-                title: String? = nil, status: LiveStatus? = nil, statusAt: Date? = nil) {
+                title: String? = nil, titleIsDerived: Bool = false, status: LiveStatus? = nil, statusAt: Date? = nil) {
         self.id = id
         self.agent = agent
         self.cwd = cwd
         self.modifiedAt = modifiedAt
         self.path = path
         self.title = title
+        self.titleIsDerived = titleIsDerived
         self.status = status
         self.statusAt = statusAt
     }
@@ -122,6 +126,7 @@ public enum SessionRecordReader {
                              modifiedAt: [transcriptModified, updated].compactMap { $0 }.max() ?? .distantPast,
                              path: transcript?.path ?? file.path,
                              title: (json["name"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                             titleIsDerived: json["nameSource"] as? String == "derived",
                              status: (json["status"] as? String).flatMap(SessionRecord.LiveStatus.init(rawValue:)),
                              statusAt: (json["statusUpdatedAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) })
     }

@@ -32,15 +32,15 @@ final class StatusItemController: NSObject {
     /// Composed status images keyed by frame + badge, so animation just swaps cached images.
     private var imageCache: [String: NSImage] = [:]
 
-    init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel, entitlements: Entitlements,
-         usage: UsageModel, settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
+    init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel,
+         usage: UsageModel, updater: Updater, settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
         self.store = store
         self.preferences = preferences
         self.settings = settings
         self.onOpen = onOpen
         super.init()
         content = MenuHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
-                                                           entitlements: entitlements, usage: usage, layout: layout,
+                                                           usage: usage, updater: updater, layout: layout,
                                                            openSettings: { [weak self] pane in
             self?.menu.cancelTracking()
             self?.settings.show(pane)
@@ -63,13 +63,23 @@ final class StatusItemController: NSObject {
         )
         observeStore()
         #if DEBUG
+        // `--stress-fit <n>` repeats what opening the menu does offscreen; `--stress-menu <n>` really opens and
+        // closes the menu n times (it shows on screen). Both hunt the menu-open crash.
+        let stressArgs = ProcessInfo.processInfo.arguments
+        for flag in ["--stress-fit", "--stress-menu"] {
+            if let i = stressArgs.firstIndex(of: flag), i + 1 < stressArgs.count, let count = Int(stressArgs[i + 1]) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
+                    self?.stress(real: flag == "--stress-menu", left: count, total: count)
+                }
+            }
+        }
         // `--dump-menu <png>` renders the dropdown offscreen after 5 s, for checks without opening the menu.
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "--dump-menu"), i + 1 < args.count {
             let path = args[i + 1]
             DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
                 let view = NSHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
-                                                                   entitlements: entitlements, usage: usage, layout: PopoverLayout()))
+                                                                   usage: usage, updater: updater, layout: PopoverLayout()))
                 let size = view.fittingSize
                 let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height),
                                       styleMask: .borderless, backing: .buffered, defer: false)
@@ -209,6 +219,24 @@ final class StatusItemController: NSObject {
         }
     }
 
+    #if DEBUG
+    private func stress(real: Bool, left: Int, total: Int) {
+        guard left > 0 else { NSLog("OpusBar stress finished: %d", total); return }
+        if real {
+            let close = Timer(timeInterval: 0.25, repeats: false) { _ in Task { @MainActor [weak self] in self?.menu.cancelTracking() } }
+            RunLoop.main.add(close, forMode: .common)
+            statusItem.button?.performClick(nil) // returns when the menu closes
+        } else {
+            menuWillOpen(menu)
+            menuDidClose(menu)
+        }
+        if (total - left + 1) % 100 == 0 { NSLog("OpusBar stress: %d", total - left + 1) }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (real ? 0.1 : 0.01)) { [weak self] in
+            self?.stress(real: real, left: left - 1, total: total)
+        }
+    }
+    #endif
+
     /// Opens the dropdown without a click (notification click, and `--menu` in debug builds).
     func showMenu() {
         guard !isMenuShown else { return }
@@ -219,9 +247,14 @@ final class StatusItemController: NSObject {
 extension StatusItemController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         isMenuShown = true
+        if let screen = statusItem.button?.window?.screen ?? NSScreen.main, layout.screenHeight != screen.visibleFrame.height {
+            layout.screenHeight = screen.visibleFrame.height
+        }
+        // Measure before anything changes, and don't ask the menu to relayout while it is being built:
+        // every crash report (SIGSEGV in AttributeGraph) was a synchronous measure here right after
+        // `onOpen` had changed observed state. What `onOpen` changes arrives through the queued refit.
+        content.fit(tellMenu: false)
         onOpen()
-        if let screen = statusItem.button?.window?.screen ?? NSScreen.main { layout.screenHeight = screen.visibleFrame.height }
-        content.fit()
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -239,6 +272,8 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
     private var rowHeight: CGFloat?
     /// True while `fit` measures, so the invalidations it causes don't schedule another pass.
     private var measuring = false
+    /// A refit is already queued: further invalidations join it.
+    private var fitQueued = false
 
     override var intrinsicContentSize: NSSize {
         guard let rowHeight else { return super.intrinsicContentSize }
@@ -247,11 +282,16 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
 
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
-        guard !measuring else { return }
-        DispatchQueue.main.async { [weak self] in self?.fit() }
+        guard !measuring, !fitQueued else { return }
+        fitQueued = true
+        DispatchQueue.main.async { [weak self] in
+            self?.fitQueued = false
+            self?.fit()
+        }
     }
 
-    func fit() {
+    /// `tellMenu: false` while the menu is being built (`menuWillOpen`): it reads the height itself then.
+    func fit(tellMenu: Bool = true) {
         measuring = true
         defer { measuring = false }
         // Measure the content itself, not the height last reported.
@@ -269,7 +309,7 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         // upward past the top (clipped) or shrinks leaving a gap above. Telling the menu the item
         // changed makes it lay out the window again from the top.
         if let item = enclosingMenuItem, let menu = item.menu {
-            menu.itemChanged(item)
+            if tellMenu { menu.itemChanged(item) }
         } else {
             superview?.layoutSubtreeIfNeeded()
         }

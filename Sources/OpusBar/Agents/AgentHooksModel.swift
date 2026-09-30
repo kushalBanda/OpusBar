@@ -27,6 +27,12 @@ final class AgentHooksModel {
         self.paths = paths
         self.environment = environment
         self.defaults = defaults
+        // A new app version carries a new hook: the connected agents run the copy, so bring it up to date.
+        do {
+            try HookInstaller.refreshBinary(paths.hookBinary, from: Self.bundledHook())
+        } catch {
+            NSLog("OpusBar: hook refresh failed: \(error)")
+        }
         refresh()
     }
 

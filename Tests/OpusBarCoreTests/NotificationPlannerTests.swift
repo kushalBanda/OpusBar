@@ -55,8 +55,12 @@ final class NotificationPlannerTests: XCTestCase {
         named.title = "fix-login"
         var sameAsFolder = session("b", .needsAttention)
         sameAsFolder.title = "API-Server"
-        let plan = NotificationPlanner.plan(old: state(), new: state(named, sameAsFolder), rules: all)
-        XCTAssertEqual(plan.post.map(\.body), ["Claude Code · fix-login · Allow Bash?", "Claude Code · Waiting for you"])
+        var madeUp = session("c", .needsAttention)
+        madeUp.title = "api-server-8d"
+        madeUp.titleIsDerived = true
+        let plan = NotificationPlanner.plan(old: state(), new: state(named, sameAsFolder, madeUp), rules: all)
+        XCTAssertEqual(plan.post.map(\.body), ["Claude Code · fix-login · Allow Bash?", "Claude Code · Waiting for you",
+                                               "Claude Code · Waiting for you"])
         XCTAssertEqual(Set(plan.post.map(\.thread)), ["/Users/me/api-server"])
     }
 

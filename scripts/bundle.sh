@@ -2,7 +2,8 @@
 # Builds OpusBar.app from the SwiftPM package.
 #   scripts/bundle.sh            release build into build/OpusBar.app
 #   CONFIG=debug scripts/bundle.sh
-# Ad-hoc signed for local runs. Developer ID signing and notarization come in M5.
+#   ARCHES="arm64 x86_64" scripts/bundle.sh   universal binary (release.sh does this)
+# Ad-hoc signed: OpusBar ships without an Apple Developer ID (ADR 23).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -18,9 +19,11 @@ if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]
 fi
 
 cd "$ROOT"
-swift build -c "$CONFIG" --product OpusBar
-swift build -c "$CONFIG" --product opusbar-hook
-BIN="$(swift build -c "$CONFIG" --show-bin-path)"
+ARCH_FLAGS=()
+for arch in ${ARCHES:-}; do ARCH_FLAGS+=(--arch "$arch"); done
+swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product OpusBar
+swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product opusbar-hook
+BIN="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"

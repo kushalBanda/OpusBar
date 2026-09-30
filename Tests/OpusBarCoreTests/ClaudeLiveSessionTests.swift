@@ -15,9 +15,10 @@ final class ClaudeLiveSessionTests: XCTestCase {
     override func tearDownWithError() throws { try? FileManager.default.removeItem(at: root) }
 
     private func writeSession(pid: Int32, id: String = "36291872-ed7f", procStart: String = "Sun Sep 27 16:38:37 2026",
-                              status: String = "idle", name: String = "quant-8d", cwd: String = "/p/quant") throws {
+                              status: String = "idle", name: String = "quant-8d", nameSource: String = "user",
+                              cwd: String = "/p/quant") throws {
         let json: [String: Any] = ["pid": pid, "sessionId": id, "cwd": cwd, "procStart": procStart,
-                                   "status": status, "name": name, "updatedAt": 1_790_653_926_753]
+                                   "status": status, "name": name, "nameSource": nameSource, "updatedAt": 1_790_653_926_753]
         try JSONSerialization.data(withJSONObject: json).write(to: root.appending(path: "sessions/\(pid).json"))
     }
 
@@ -26,6 +27,7 @@ final class ClaudeLiveSessionTests: XCTestCase {
         let found = SessionRecordReader.claudeLiveSessions(processes: [(32016, started)], configRoots: [root])
         XCTAssertEqual(found[32016]?.id, "36291872-ed7f")
         XCTAssertEqual(found[32016]?.title, "quant-8d")
+        XCTAssertEqual(found[32016]?.titleIsDerived, false)
         XCTAssertEqual(found[32016]?.status, .busy)
         XCTAssertEqual(found[32016]?.cwd, "/p/quant")
         XCTAssertEqual(found[32016]?.modifiedAt, Date(timeIntervalSince1970: 1_790_653_926.753))
@@ -52,6 +54,19 @@ final class ClaudeLiveSessionTests: XCTestCase {
         try writeSession(pid: 5)
         try FileManager.default.moveItem(at: root.appending(path: "sessions/5.json"), to: root.appending(path: "sessions/6.json"))
         XCTAssertTrue(SessionRecordReader.claudeLiveSessions(processes: [(6, started)], configRoots: [root]).isEmpty)
+    }
+
+    func testClaudesMadeUpNameIsMarkedDerived() throws {
+        try writeSession(pid: 32016, name: "quant-e0", nameSource: "derived")
+        let record = SessionRecordReader.claudeLiveSessions(processes: [(32016, started)], configRoots: [root])[32016]
+        XCTAssertEqual(record?.title, "quant-e0", "kept for the details")
+        XCTAssertEqual(record?.titleIsDerived, true)
+        var session = Session(id: "s", cwd: "/p/quant", startedAt: started)
+        session.title = record?.title
+        session.titleIsDerived = true
+        XCTAssertNil(session.distinctTitle, "rows and notifications skip a made-up name")
+        session.titleIsDerived = false
+        XCTAssertEqual(session.distinctTitle, "quant-e0")
     }
 
     func testUnknownStatusIsNil() throws {

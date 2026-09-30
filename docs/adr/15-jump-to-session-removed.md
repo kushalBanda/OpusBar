@@ -1,6 +1,6 @@
 # 15. Jump to session removed; Pro v1 is Usage and Spend
 
-- Status: Accepted (amends 13)
+- Status: Accepted (amends 13); Pro parts superseded by 22
 - Date: 2026-09-29
 
 ## Context

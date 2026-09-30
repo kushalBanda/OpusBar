@@ -8,8 +8,8 @@ struct SessionListView: View {
     let store: SessionStore
     let preferences: Preferences
     let hooks: AgentHooksModel
-    let entitlements: Entitlements
     let usage: UsageModel
+    let updater: Updater
     let layout: PopoverLayout
     var openSettings: (SettingsPane?) -> Void = { _ in }
     /// One card open at a time; the others stay compact.
@@ -66,12 +66,15 @@ struct SessionListView: View {
                     }
                 }
                 page(.usage) {
-                    UsageDropdownView(usage: usage, entitlements: entitlements, maxHeight: maxListHeight, openSettings: openSettings)
+                    UsageDropdownView(usage: usage, maxHeight: maxListHeight)
                 }
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: tab)
             Divider()
             VStack(spacing: 0) {
+                if let release = updater.offered {
+                    MenuItemRow(title: "Update to OpusBar \(release.version)…", systemImage: "arrow.down.circle") { openSettings(.about) }
+                }
                 MenuItemRow(title: "Usage and Spend…", systemImage: "chart.bar") { openSettings(.usage) }
                 MenuItemRow(title: "Settings…", systemImage: "gearshape", action: { openSettings(nil) })
                 MenuItemRow(title: "Quit OpusBar", systemImage: "power") { NSApp.terminate(nil) }

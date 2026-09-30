@@ -58,6 +58,7 @@ public final class Preferences {
         static let notifyLimitReset = "notifyLimitReset"
         static let limitResetMuted = "limitResetMutedAccounts"
         static let notifyLimitWarning = "notifyLimitWarning"
+        static let checkForUpdates = "checkForUpdates"
     }
 
     public var animateCat: Bool { didSet { defaults.set(animateCat, forKey: Key.animateCat) } }
@@ -70,6 +71,8 @@ public final class Preferences {
     public var connectCardDismissed: Bool { didSet { defaults.set(connectCardDismissed, forKey: Key.connectCardDismissed) } }
     /// A notification when a plan window with some use renews.
     public var notifyLimitReset: Bool { didSet { defaults.set(notifyLimitReset, forKey: Key.notifyLimitReset) } }
+    /// Asks GitHub once a day whether a newer release exists (ADR 23). Off means no request at all.
+    public var checkForUpdates: Bool { didSet { defaults.set(checkForUpdates, forKey: Key.checkForUpdates) } }
     /// A notification when a plan window reaches 80 % and 95 % used.
     public var notifyLimitWarning: Bool { didSet { defaults.set(notifyLimitWarning, forKey: Key.notifyLimitWarning) } }
     /// Accounts (`UsageLimits.id`) whose limit notifications (resets and warnings) stay quiet.
@@ -99,6 +102,7 @@ public final class Preferences {
         notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? false
         connectCardDismissed = defaults.bool(forKey: Key.connectCardDismissed)
         notifyLimitReset = defaults.object(forKey: Key.notifyLimitReset) as? Bool ?? true
+        checkForUpdates = defaults.object(forKey: Key.checkForUpdates) as? Bool ?? true
         notifyLimitWarning = defaults.object(forKey: Key.notifyLimitWarning) as? Bool ?? true
         limitResetMuted = Set(defaults.stringArray(forKey: Key.limitResetMuted) ?? [])
         coat = defaults.string(forKey: Key.coat).flatMap(CatCoat.init) ?? .classic

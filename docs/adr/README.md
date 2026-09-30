@@ -13,14 +13,16 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [7](7-claude-config-root-resolution.md) | Claude config root: literal CLAUDE_CONFIG_DIR, else ~/.claude | Accepted |
 | [8](8-git-branch-from-head-file.md) | Git branch read from .git/HEAD | Accepted |
 | [9](9-oneko-mascot-and-animation-budget.md) | oneko mascot, 4 fps menu bar cap, 30 s stop | Accepted |
-| [10](10-one-time-pro-unlock.md) | One-time $5 Pro unlock behind Entitlements | Accepted (M3, amended by 13, 14) |
+| [10](10-one-time-pro-unlock.md) | One-time $5 Pro unlock behind Entitlements | Superseded by 22 |
 | [11](11-agents-discovery-plus-integrations.md) | Four agents (Claude Code, Codex, pi, OMP): discovery + integrations | Accepted (pi/OMP superseded by 18) |
 | [12](12-codex-hooks-synchronous.md) | Codex hooks run synchronously (amends 3) | Accepted |
-| [13](13-pro-perks-and-key-policy.md) | Pro v1 = jump + Usage and Spend; unlimited keys (amends 10) | Accepted |
+| [13](13-pro-perks-and-key-policy.md) | Pro v1 = jump + Usage and Spend; unlimited keys (amends 10) | Superseded by 22 |
 | [18](18-pi-and-omp-removed.md) | pi and OMP removed: Claude Code and Codex only | Accepted |
 | [19](19-usage-from-local-logs.md) | Usage and Spend from the agents' local logs | Accepted (amended by 20) |
 | [20](20-plan-limits-in-the-menu-bar.md) | Plan limits and usage in the menu bar | Accepted (Claude source superseded by 21) |
 | [21](21-claude-limits-per-account.md) | Claude plan limits per account, from Claude Code's cache | Accepted |
+| [22](22-opusbar-is-free.md) | OpusBar is free: no Pro, no license | Accepted (amended by 23) |
+| [23](23-unsigned-distribution-and-updates.md) | Unsigned distribution and a signed update check | Accepted |
 
 Template:
 

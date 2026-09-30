@@ -1,6 +1,6 @@
 # 10. One-time $5 Pro unlock behind a single Entitlements seam
 
-- Status: Accepted (implementation in M3; perks and key policy amended by 13 and 14)
+- Status: Superseded by 22
 - Date: 2026-09-28
 
 ## Context

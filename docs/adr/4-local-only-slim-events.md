@@ -1,6 +1,6 @@
 # 4. Local only: whitelist slimming, no telemetry
 
-- Status: Accepted
+- Status: Accepted (amended by 22 and 23: the update check is the only network call)
 - Date: 2026-09-28
 
 ## Context

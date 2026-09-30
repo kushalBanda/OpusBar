@@ -83,7 +83,10 @@ public final class SessionStore {
             else { continue }
             if let host = process.host { session.host = host }
             guard let record = process.record else { next.byId[id] = session; continue }
-            if let title = record.title { session.title = title }
+            if let title = record.title {
+                session.title = title
+                session.titleIsDerived = record.titleIsDerived
+            }
             if Self.turnEndedWithoutStop(session, record: record) {
                 session.transition(to: .idle, detail: nil, now: now)
                 session.turnStartedAt = nil
@@ -111,6 +114,7 @@ public final class SessionStore {
             session.agent = process.agent
             session.pid = process.pid
             session.title = process.record?.title
+            session.titleIsDerived = process.record?.titleIsDerived ?? false
             session.host = process.host
             if let record = process.record {
                 session.lastEventAt = record.modifiedAt

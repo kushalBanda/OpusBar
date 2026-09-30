@@ -67,9 +67,8 @@ public enum NotificationPlanner {
         case .done where rules.done: (title, detail) = ("\(name) is done", "Finished its turn")
         default: return nil
         }
-        // Two sessions in one folder: name the session too, so the notice says which one.
-        let sessionTitle = session.title.flatMap { $0.caseInsensitiveCompare(name) == .orderedSame ? nil : $0 }
-        let body = [session.agent.displayName, sessionTitle, detail].compactMap { $0 }.joined(separator: " · ")
+        // A session the user named: name it too, so the notice says which one.
+        let body = [session.agent.displayName, session.distinctTitle, detail].compactMap { $0 }.joined(separator: " · ")
         return SessionNotice(sessionId: session.id, state: session.state, title: title, body: body,
                              thread: session.cwd.isEmpty ? session.id : session.cwd)
     }

@@ -13,13 +13,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var notifier: SessionNotifier?
     private var limitResets: LimitResetNotifier?
     private var settings: SettingsWindowController?
+    private var updater: Updater?
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         BrandFont.register()
         let preferences = Preferences()
-        let entitlements = Self.makeEntitlements()
         let store = SessionStore(finishedTTL: preferences.retention.seconds)
         self.preferences = preferences
         self.store = store
@@ -54,12 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
         self.notifier = notifier
         limitResets = LimitResetNotifier(usage: usage, preferences: preferences)
+        let updater = Updater(preferences: preferences)
+        self.updater = updater
         let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store,
-                                                entitlements: entitlements, usage: usage)
+                                                usage: usage, updater: updater)
         self.settings = settings
         NSApp.mainMenu = Self.makeMainMenu()
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
-                                          entitlements: entitlements, usage: usage, settings: settings) {
+                                          usage: usage, updater: updater, settings: settings) {
             discovery.scanNow()
             usage.refresh()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
@@ -85,7 +87,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// Shown only while Settings is open (the app is regular then): the standard app, Edit and Window
-    /// menus, so ⌘Q, ⌘W, ⌘M and copy/paste in the license key field work.
+    /// menus, so ⌘Q, ⌘W, ⌘M and copy/paste in text fields work.
     @MainActor
     private static func makeMainMenu() -> NSMenu {
         let main = NSMenu()
@@ -130,44 +132,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         settings?.show()
         return true
     }
-
-    /// Live Polar and the login Keychain. Debug builds: `--pro` shows Pro without a key, and
-    /// `--polar-sandbox <organization id>` checks keys against Polar's sandbox, kept in a separate Keychain item.
-    @MainActor
-    private static func makeEntitlements() -> Entitlements {
-        #if DEBUG
-        let arguments = ProcessInfo.processInfo.arguments
-        if arguments.contains("--pro") { return Entitlements(isPro: true) }
-        if let index = arguments.firstIndex(of: "--polar-sandbox"), index + 1 < arguments.count {
-            let store = PolarStore(apiBase: PolarStore.sandboxAPI, organizationId: arguments[index + 1],
-                                   checkoutURL: URL(string: "https://sandbox-api.polar.sh/v1/checkout-links/polar_cl_lhhOin1IJlKBJzHlBzAUOHhcvS9x7C5D6FbBP0CjZic/redirect"))
-            return Entitlements(provider: PolarLicenseProvider(store: store),
-                                cache: SandboxLicenseCache(), checkoutURL: store.checkoutURL)
-        }
-        #endif
-        return Entitlements(provider: PolarLicenseProvider(store: .live), cache: KeychainLicenseCache(),
-                            checkoutURL: PolarStore.live.checkoutURL)
-    }
-
-    #if DEBUG
-    /// Sandbox keys in UserDefaults: debug builds are re-signed on every build, and the Keychain asks
-    /// for the login password each time a differently signed app reads its item. Sandbox keys buy nothing.
-    private struct SandboxLicenseCache: LicenseCache {
-        private static let defaultsKey = "debugSandboxLicense"
-
-        func load() -> StoredLicense? {
-            UserDefaults.standard.data(forKey: Self.defaultsKey).flatMap { try? JSONDecoder().decode(StoredLicense.self, from: $0) }
-        }
-
-        func save(_ license: StoredLicense) throws {
-            UserDefaults.standard.set(try JSONEncoder().encode(license), forKey: Self.defaultsKey)
-        }
-
-        func clear() {
-            UserDefaults.standard.removeObject(forKey: Self.defaultsKey)
-        }
-    }
-    #endif
 
     /// Keeps the store's finished-session TTL in step with Settings, and prunes right away on a change.
     @MainActor

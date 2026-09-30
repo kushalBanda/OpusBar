@@ -15,13 +15,13 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let launchAtLogin = LaunchAtLogin()
     private let notifier: SessionNotifier
     private let store: SessionStore
-    private let entitlements: Entitlements
     private let usage: UsageModel
+    private let updater: Updater
 
     init(hooks: AgentHooksModel, preferences: Preferences, notifier: SessionNotifier, store: SessionStore,
-         entitlements: Entitlements, usage: UsageModel) {
-        self.entitlements = entitlements
+         usage: UsageModel, updater: Updater) {
         self.usage = usage
+        self.updater = updater
         self.hooks = hooks
         self.preferences = preferences
         self.notifier = notifier
@@ -34,7 +34,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         if window == nil {
             let root = SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
                                     launchAtLogin: launchAtLogin, notifier: notifier, store: store,
-                                    entitlements: entitlements, usage: usage)
+                                    usage: usage, updater: updater)
             let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "OpusBar"
             window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
@@ -65,7 +65,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         navigation.pane = pane
         let view = NSHostingView(rootView: SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
                                                         launchAtLogin: launchAtLogin, notifier: notifier, store: store,
-                                                        entitlements: entitlements, usage: usage))
+                                                        usage: usage, updater: updater))
         let size = view.fittingSize
         let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: max(size.width, 760), height: max(size.height, 600)),
                               styleMask: .borderless, backing: .buffered, defer: false)

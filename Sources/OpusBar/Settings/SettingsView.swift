@@ -2,7 +2,7 @@ import OpusBarCore
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, cat, agents, usage, notifications, license, about
+    case general, cat, agents, usage, notifications, about
 
     var id: String { rawValue }
 
@@ -13,7 +13,6 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .agents: "Agents"
         case .usage: "Usage"
         case .notifications: "Notifications"
-        case .license: "License"
         case .about: "About"
         }
     }
@@ -25,7 +24,6 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .agents: "powerplug"
         case .usage: "chart.bar.fill"
         case .notifications: "bell"
-        case .license: "key"
         case .about: "info.circle"
         }
     }
@@ -37,7 +35,6 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .agents: Theme.pink
         case .usage: Theme.blue
         case .notifications: Theme.yellow
-        case .license: Theme.green
         case .about: Theme.red
         }
     }
@@ -58,8 +55,8 @@ struct SettingsView: View {
     let launchAtLogin: LaunchAtLogin
     let notifier: SessionNotifier
     let store: SessionStore
-    let entitlements: Entitlements
     let usage: UsageModel
+    let updater: Updater
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -103,7 +100,7 @@ struct SettingsView: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.green))
                 VStack(alignment: .leading, spacing: 3) {
                     Text("OpusBar").font(Theme.font(14, .semibold)).kerning(-0.3)
-                    PlanBadge(isPro: entitlements.isPro)
+                    Text(AboutPane.version).font(Theme.font(11, .regular)).opacity(0.6)
                 }
             }
             .padding(10)
@@ -134,10 +131,9 @@ struct SettingsView: View {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
         case .cat: CatPane(preferences: preferences)
         case .agents: AgentsSettingsView(model: hooks, store: store)
-        case .usage: UsagePane(usage: usage, entitlements: entitlements) { navigation.pane = .license }
+        case .usage: UsagePane(usage: usage)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier, usage: usage)
-        case .license: LicensePane(entitlements: entitlements)
-        case .about: AboutPane()
+        case .about: AboutPane(updater: updater, preferences: preferences)
         }
     }
 }
@@ -413,7 +409,10 @@ struct NotificationsPane: View {
 // MARK: - About
 
 struct AboutPane: View {
-    private var version: String {
+    let updater: Updater
+    @Bindable var preferences: Preferences
+
+    static var version: String {
         let info = Bundle.main.infoDictionary
         guard let short = info?["CFBundleShortVersionString"] as? String else { return "Development build" }
         return "Version \(short)"
@@ -428,116 +427,83 @@ struct AboutPane: View {
                         .background(RoundedRectangle(cornerRadius: 20).fill(Theme.tileLight.opacity(0.5)))
                     VStack(alignment: .leading, spacing: 8) {
                         Text("OpusBar").font(Theme.font(34, .medium)).kerning(-1.7)
-                        Text(version).font(Theme.font(14, .regular))
+                        Text(Self.version).font(Theme.font(14, .regular))
                     }
                 }
                 .padding(8)
             }
+            UpdatesTile(updater: updater, preferences: preferences)
             Tile {
                 TileHeading(title: "Privacy",
-                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events, and the plan limits Claude Code caches for each account, locally and sends nothing anywhere. Usage and Spend keeps only token counts, never your prompts or replies.")
+                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events, and the plan limits Claude Code caches for each account, locally. The only thing it sends is the update check: a request to GitHub for the latest version, carrying OpusBar's version and nothing about you. Usage and Spend keeps only token counts, never your prompts or replies.")
             }
         }
     }
 }
 
-// MARK: - License
-
-/// "Free" or "Pro" under the app name in the sidebar.
-private struct PlanBadge: View {
-    let isPro: Bool
-
-    var body: some View {
-        Text(isPro ? "Pro" : "Free")
-            .font(Theme.font(10, .semibold))
-            .padding(.horizontal, 7).padding(.vertical, 2)
-            .foregroundStyle(isPro ? Theme.onColor : Theme.ink)
-            .background(Capsule().fill(isPro ? Theme.green : Theme.ink.opacity(0.12))) // canvas2 matches the dark card, hiding the chip
-            .accessibilityLabel(isPro ? "Plan: Pro" : "Plan: Free")
-    }
-}
-
-/// Free: what Pro adds, Buy, and the key field. Pro: the key (masked) and Deactivate.
+/// Updates: what the last check found, Check Now, and the automatic check switch. An offered release
+/// installs only on a click.
 @MainActor
-struct LicensePane: View {
-    let entitlements: Entitlements
-    @State private var key = ""
-    @State private var checking = false
-    @State private var error: String?
+private struct UpdatesTile: View {
+    let updater: Updater
+    @Bindable var preferences: Preferences
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            PaneTitle(title: "License")
-            if entitlements.isPro { pro } else { free }
+        Tile {
+            HStack(alignment: .center, spacing: 14) {
+                TileHeading(title: title, subtitle: subtitle)
+                Spacer()
+                actions
+            }
+            .padding(.vertical, 4)
+            Divider().opacity(0.5)
+            HStack {
+                TileHeading(title: "Check for updates automatically",
+                            subtitle: "Once a day, a request to GitHub for the latest version. Off: no request at all.")
+                Spacer()
+                Toggle("Check for updates automatically", isOn: $preferences.checkForUpdates)
+                    .labelsHidden().toggleStyle(.switch).tint(Theme.green)
+            }
+            .padding(.vertical, 4)
         }
     }
 
-    private var pro: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Tile(fill: Theme.green, onColor: true) {
-                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Every Usage and Spend range is yours.")
-            }
-            if let license = entitlements.license {
-                Tile {
-                    HStack(spacing: 12) {
-                        TileHeading(title: "License key", subtitle: Entitlements.masked(license.key))
-                        Spacer()
-                        Button("Deactivate") { entitlements.deactivate() }
-                            .help("Removes the key from this Mac. The key keeps working, so you can enter it again.")
-                    }
-                }
-            }
+    @ViewBuilder
+    private var actions: some View {
+        switch updater.state {
+        case .available:
+            Button("Release Notes") { updater.openReleasePage() }
+            Button("Update and Relaunch") { updater.install() }
+                .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
+        case .checking, .installing:
+            ProgressView().controlSize(.small)
+        case .failed where updater.offered != nil:
+            Button("Download from GitHub") { updater.openReleasePage() }
+            Button("Try Again") { updater.install() }
+        default:
+            Button("Check Now") { updater.check() }
         }
     }
 
-    private var free: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Tile {
-                HStack(alignment: .center, spacing: 16) {
-                    TileHeading(title: "You're on Free",
-                                subtitle: "Sessions, live states, the cat, notifications and the last 24 hours of Usage and Spend are free. Pro adds 7, 30 and 90 days with daily bars, for a one-time \(Entitlements.proPrice). No account.")
-                    Spacer(minLength: 0)
-                    if let checkout = entitlements.checkoutURL {
-                        Button("Buy Pro") { NSWorkspace.shared.open(checkout) }
-                            .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
-                    }
-                }
-            }
-            Tile {
-                TileHeading(title: "License key", subtitle: "From your Polar receipt email.")
-                HStack(spacing: 8) {
-                    TextField("License key", text: $key)
-                        .textFieldStyle(.roundedBorder)
-                        .font(Theme.font(13).monospaced())
-                        .onSubmit(activate)
-                        .onChange(of: key) { _, _ in error = nil }
-                        .disabled(checking)
-                    Button(checking ? "Checking…" : "Activate", action: activate)
-                        .keyboardShortcut(.defaultAction)
-                        .disabled(checking || key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding(.top, 6)
-                if let error {
-                    Label(error, systemImage: "exclamationmark.circle.fill")
-                        .font(Theme.font(12, .medium)).foregroundStyle(Theme.red)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .transition(.opacity)
-                }
-            }
-            Text("Checked once online with Polar, then it works offline. Nothing else is sent.")
-                .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 4)
+    private var title: String {
+        switch updater.state {
+        case .available(let release): "OpusBar \(release.version) is available"
+        case .installing(let release): "Installing OpusBar \(release.version)…"
+        case .checking: "Checking for updates…"
+        case .upToDate: "OpusBar is up to date"
+        case .failed: "Update problem"
+        case .idle: "Updates"
         }
     }
 
-    private func activate() {
-        guard !checking else { return }
-        checking = true
-        error = nil
-        Task {
-            let failure = await entitlements.activate(key: key)
-            checking = false
-            error = failure?.message
-            if failure == nil { key = "" }
+    private var subtitle: String? {
+        switch updater.state {
+        case .available: "Downloaded from GitHub and checked against OpusBar's signature before anything changes."
+        case .installing: "OpusBar quits and opens again when it's done."
+        case .upToDate(let date): "Checked \(date.formatted(date: .omitted, time: .shortened))."
+        case .failed(let reason): reason
+        case .checking: nil
+        case .idle: Updater.current == nil ? "This is a development build; it doesn't update itself." : nil
         }
     }
 }

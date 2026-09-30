@@ -40,6 +40,35 @@ final class HookInstallerTests: XCTestCase {
         try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: settingsURL)) as? [String: Any])
     }
 
+    private func quarantined(_ url: URL) -> Bool { getxattr(url.path, "com.apple.quarantine", nil, 0, 0, 0) >= 0 }
+
+    private func quarantine(_ url: URL) {
+        let mark = "0083;6abcc3b1;Safari;7B4DE5CC-8987-4E01-BFE0-91D538C270D5"
+        setxattr(url.path, "com.apple.quarantine", mark, mark.utf8.count, 0, 0)
+    }
+
+    func testCopiedHookLosesTheDownloadMark() throws {
+        let source = try hookSource()
+        quarantine(source)
+        XCTAssertTrue(quarantined(source))
+        try installer().install(hookSource: source)
+        let copy = root.appending(path: "support/bin/opusbar-hook")
+        XCTAssertFalse(quarantined(copy), "Gatekeeper kills a quarantined unsigned hook when an agent runs it")
+        quarantine(copy)
+        try installer().install(hookSource: source)
+        XCTAssertFalse(quarantined(copy), "an unchanged copy is cleared too")
+    }
+
+    func testRefreshReplacesAnOldCopyButNeverCreatesOne() throws {
+        let copy = root.appending(path: "support/bin/opusbar-hook")
+        try HookInstaller.refreshBinary(copy, from: try hookSource())
+        XCTAssertFalse(FileManager.default.fileExists(atPath: copy.path), "not connected anywhere: nothing to refresh")
+        try installer().install(hookSource: try hookSource("#!/bin/sh\necho old\n"))
+        let new = try hookSource("#!/bin/sh\necho new\n")
+        try HookInstaller.refreshBinary(copy, from: new)
+        XCTAssertTrue(FileManager.default.contentsEqual(atPath: copy.path, andPath: new.path))
+    }
+
     func testMergeAddsTwelveEntries() {
         let merged = HookInstaller.merged([:], command: "\"/x/opusbar-hook\"", events: HookEventName.subscribed)
         let hooks = merged["hooks"] as? [String: Any]

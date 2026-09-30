@@ -194,16 +194,33 @@ public struct HookInstaller: Sendable {
         }
     }
 
-    /// Copies the hook into the stable location (only when missing or changed), executable.
+    /// Copies the hook into the stable location (only when missing or changed), executable, without the
+    /// download quarantine mark. Builds aren't notarized: a quarantined copy is killed by Gatekeeper when an
+    /// agent runs it (exit 137), and approving OpusBar with Open Anyway doesn't clear the copy's mark.
     func installBinary(from source: URL) throws {
         let fm = FileManager.default
         guard fm.isExecutableFile(atPath: source.path) else { throw InstallError.hookBinaryMissing(source.path) }
         if source.standardizedFileURL == hookBinary.standardizedFileURL { return }
-        if fm.contentsEqual(atPath: source.path, andPath: hookBinary.path) { return }
+        if fm.contentsEqual(atPath: source.path, andPath: hookBinary.path) {
+            Self.clearQuarantine(hookBinary)
+            return
+        }
         try fm.createDirectory(at: hookBinary.deletingLastPathComponent(), withIntermediateDirectories: true)
         let staged = hookBinary.deletingLastPathComponent().appending(path: ".opusbar-hook.\(UUID().uuidString)")
         try fm.copyItem(at: source, to: staged)
         try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: staged.path)
+        Self.clearQuarantine(staged)
         _ = try fm.replaceItemAt(hookBinary, withItemAt: staged)
+    }
+
+    /// After an app update: the agents keep running the old copy until it is replaced. Only when OpusBar
+    /// is connected somewhere (the copy exists); never creates it.
+    public static func refreshBinary(_ hookBinary: URL, from source: URL) throws {
+        guard FileManager.default.fileExists(atPath: hookBinary.path) else { return }
+        try HookInstaller(settingsURL: hookBinary, hookBinary: hookBinary, backupsDir: hookBinary).installBinary(from: source)
+    }
+
+    static func clearQuarantine(_ url: URL) {
+        removexattr(url.path, "com.apple.quarantine", 0)
     }
 }

@@ -1,6 +1,6 @@
 # 19. Usage and Spend from the agents' local logs
 
-- Status: Accepted (amended by 20: plan limits read the Claude app's file and one field of `~/.claude.json`)
+- Status: Accepted (amended by 20; gate removed by 22)
 - Date: 2026-09-30
 
 ## Context

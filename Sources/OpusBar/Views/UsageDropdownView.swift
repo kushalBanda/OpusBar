@@ -20,9 +20,7 @@ enum DropdownTab: String, CaseIterable {
 @MainActor
 struct UsageDropdownView: View {
     let usage: UsageModel
-    let entitlements: Entitlements
     let maxHeight: CGFloat
-    var openSettings: (SettingsPane?) -> Void
     @State private var range: UsageRange = .day
 
     var body: some View {
@@ -46,20 +44,9 @@ struct UsageDropdownView: View {
             ForEach(usage.limits) { limits in
                 LimitsCard(limits: limits, showsAccount: usage.limits.filter { $0.agent == limits.agent }.count > 1, now: now)
             }
-            SegmentedPicker(options: UsageRange.allCases, selection: $range, size: 11,
-                            badge: { $0.isAvailable(isPro: entitlements.isPro) ? nil : "lock.fill" }) { $0.label }
+            SegmentedPicker(options: UsageRange.allCases, selection: $range, size: 11) { $0.label }
                 .padding(.top, 4)
-            if !range.isAvailable(isPro: entitlements.isPro) {
-                UsageCard {
-                    HStack(spacing: 10) {
-                        Text("\(range.label) is Pro. The last 24 hours stays free.")
-                            .font(Theme.font(12, .regular)).fixedSize(horizontal: false, vertical: true)
-                        Spacer(minLength: 0)
-                        Button("Unlock…") { openSettings(.license) }
-                            .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor).controlSize(.small)
-                    }
-                }
-            } else if let summary = usage.summaries[range] {
+            if let summary = usage.summaries[range] {
                 SpendCard(summary: summary)
                 if summary.hasSeveralAccounts {
                     ShareCard(title: "Accounts", symbol: "person.2", shares: summary.byAccount.map(\.shortName),

@@ -1,7 +1,7 @@
 import Foundation
 import OpusBarWire
 
-/// The ranges the Usage and Spend pane offers. Only the last 24 hours is free (M4 plan, owner).
+/// The ranges the Usage and Spend pane offers.
 public enum UsageRange: String, CaseIterable, Identifiable, Sendable {
     case day, week, month, quarter
 
@@ -25,9 +25,6 @@ public enum UsageRange: String, CaseIterable, Identifiable, Sendable {
         case .quarter: 90
         }
     }
-
-    /// The one gate for usage ranges: Pro unlocks everything past 24 hours.
-    public func isAvailable(isPro: Bool) -> Bool { isPro || self == .day }
 
     /// 24 h rolls with the clock; the others start at local midnight so their day bars are whole days.
     public func start(now: Date, calendar: Calendar = .current) -> Date {

@@ -10,6 +10,13 @@ public struct Session: Identifiable, Equatable, Sendable {
     /// The agent's own name for the session (Claude: `quant-8d`), when it has one. Tells apart
     /// several sessions in one folder.
     public var title: String?
+    /// Claude made the title up (see `SessionRecord.titleIsDerived`): shown in details only.
+    public var titleIsDerived = false
+    /// The title worth showing in a row or notification: one the user gave, unless it repeats the folder.
+    public var distinctTitle: String? {
+        guard let title, !titleIsDerived, title.caseInsensitiveCompare(projectName) != .orderedSame else { return nil }
+        return title
+    }
     /// The app and tty the session runs in, from its parent processes.
     public var host: SessionHost?
     /// When the current turn began (the prompt was sent); nil between turns.
