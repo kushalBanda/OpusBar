@@ -15,4 +15,4 @@ Hook payloads contain prompts, tool inputs, tool responses and assistant message
 
 ## Consequences
 - Prompt text never reaches the app, the socket or disk.
-- Features that need more (e.g. usage from transcripts, M4) read local files only and must be scoped explicitly.
+- Features that need more (e.g. usage from transcripts, M4) read local files only and must be scoped explicitly. Usage and Spend is scoped in ADR 19.

@@ -18,6 +18,7 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [12](12-codex-hooks-synchronous.md) | Codex hooks run synchronously (amends 3) | Accepted |
 | [13](13-pro-perks-and-key-policy.md) | Pro v1 = jump + Usage and Spend; unlimited keys (amends 10) | Accepted |
 | [18](18-pi-and-omp-removed.md) | pi and OMP removed: Claude Code and Codex only | Accepted |
+| [19](19-usage-from-local-logs.md) | Usage and Spend from the agents' local logs | Accepted |
 
 Template:
 

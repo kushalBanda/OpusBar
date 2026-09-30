@@ -33,14 +33,14 @@ final class StatusItemController: NSObject {
     private var imageCache: [String: NSImage] = [:]
 
     init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel, entitlements: Entitlements,
-         settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
+         usage: UsageModel, settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
         self.store = store
         self.preferences = preferences
         self.settings = settings
         self.onOpen = onOpen
         super.init()
         content = MenuHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
-                                                           entitlements: entitlements, layout: layout,
+                                                           entitlements: entitlements, usage: usage, layout: layout,
                                                            openSettings: { [weak self] pane in
             self?.menu.cancelTracking()
             self?.settings.show(pane)

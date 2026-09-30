@@ -31,7 +31,8 @@ cp -R Sources/OpusBar/Resources/Coats "$APP/Contents/Resources/"
 cp Sources/OpusBar/Resources/Catppuccineko-LICENSE.txt Sources/OpusBar/Resources/spicetify-oneko-LICENSE.txt \
    Sources/OpusBar/Resources/0xdhrv-oneko-LICENSE.txt \
    Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt \
-   Sources/OpusBar/Resources/PixelifySans.ttf Sources/OpusBar/Resources/PixelifySans-LICENSE.txt "$APP/Contents/Resources/"
+   Sources/OpusBar/Resources/PixelifySans.ttf Sources/OpusBar/Resources/PixelifySans-LICENSE.txt \
+   Sources/OpusBar/Resources/usage-prices.json "$APP/Contents/Resources/"
 
 # App icon (also shown on notifications): original pixel cat, rendered from scripts/make-icon.swift.
 swift scripts/make-icon.swift "$ROOT/build/icon" >/dev/null

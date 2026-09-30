@@ -16,10 +16,12 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
     private let notifier: SessionNotifier
     private let store: SessionStore
     private let entitlements: Entitlements
+    private let usage: UsageModel
 
     init(hooks: AgentHooksModel, preferences: Preferences, notifier: SessionNotifier, store: SessionStore,
-         entitlements: Entitlements) {
+         entitlements: Entitlements, usage: UsageModel) {
         self.entitlements = entitlements
+        self.usage = usage
         self.hooks = hooks
         self.preferences = preferences
         self.notifier = notifier
@@ -32,7 +34,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         if window == nil {
             let root = SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
                                     launchAtLogin: launchAtLogin, notifier: notifier, store: store,
-                                    entitlements: entitlements)
+                                    entitlements: entitlements, usage: usage)
             let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "OpusBar"
             window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]

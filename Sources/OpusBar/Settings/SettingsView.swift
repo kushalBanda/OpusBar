@@ -2,7 +2,7 @@ import OpusBarCore
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, cat, agents, notifications, license, about
+    case general, cat, agents, usage, notifications, license, about
 
     var id: String { rawValue }
 
@@ -11,6 +11,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "General"
         case .cat: "Cat"
         case .agents: "Agents"
+        case .usage: "Usage"
         case .notifications: "Notifications"
         case .license: "License"
         case .about: "About"
@@ -22,6 +23,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: "gearshape"
         case .cat: "cat"
         case .agents: "powerplug"
+        case .usage: "chart.bar.fill"
         case .notifications: "bell"
         case .license: "key"
         case .about: "info.circle"
@@ -33,6 +35,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
         case .general: Color(hex: 0xC2BCAD) // fixed warm grey: the dark glyph needs a light tile in both modes
         case .cat: Theme.green // same tile as the identity card and app icon
         case .agents: Theme.pink
+        case .usage: Theme.blue
         case .notifications: Theme.yellow
         case .license: Theme.green
         case .about: Theme.red
@@ -56,6 +59,7 @@ struct SettingsView: View {
     let notifier: SessionNotifier
     let store: SessionStore
     let entitlements: Entitlements
+    let usage: UsageModel
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -130,6 +134,7 @@ struct SettingsView: View {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
         case .cat: CatPane(preferences: preferences)
         case .agents: AgentsSettingsView(model: hooks, store: store)
+        case .usage: UsagePane(usage: usage, entitlements: entitlements) { navigation.pane = .license }
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier)
         case .license: LicensePane(entitlements: entitlements)
         case .about: AboutPane()
@@ -375,7 +380,7 @@ struct AboutPane: View {
             }
             Tile {
                 TileHeading(title: "Privacy",
-                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files and hook events locally and sends nothing anywhere.")
+                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events locally and sends nothing anywhere. Usage and Spend keeps only token counts, never your prompts or replies.")
             }
         }
     }
@@ -415,7 +420,7 @@ struct LicensePane: View {
     private var pro: some View {
         VStack(alignment: .leading, spacing: 8) {
             Tile(fill: Theme.green, onColor: true) {
-                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Usage and Spend is yours.")
+                TileHeading(title: "You're on Pro", subtitle: "Thanks for supporting OpusBar. Every Usage and Spend range is yours.")
             }
             if let license = entitlements.license {
                 Tile {
@@ -435,7 +440,7 @@ struct LicensePane: View {
             Tile {
                 HStack(alignment: .center, spacing: 16) {
                     TileHeading(title: "You're on Free",
-                                subtitle: "Sessions, live states, the cat and notifications are free. Pro adds Usage and Spend: tokens and cost per project, model and day, for a one-time \(Entitlements.proPrice). No account.")
+                                subtitle: "Sessions, live states, the cat, notifications and the last 24 hours of Usage and Spend are free. Pro adds 7, 30 and 90 days with daily bars, for a one-time \(Entitlements.proPrice). No account.")
                     Spacer(minLength: 0)
                     if let checkout = entitlements.checkoutURL {
                         Button("Buy Pro") { NSWorkspace.shared.open(checkout) }

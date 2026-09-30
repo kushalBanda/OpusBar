@@ -8,6 +8,7 @@ struct SessionListView: View {
     let preferences: Preferences
     let hooks: AgentHooksModel
     let entitlements: Entitlements
+    let usage: UsageModel
     let layout: PopoverLayout
     var openSettings: (SettingsPane?) -> Void = { _ in }
     /// One card open at a time; the others stay compact.
@@ -37,6 +38,9 @@ struct SessionListView: View {
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 4)
+            if let totals = usage.last24h {
+                UsageStrip(totals: totals)
+            }
             if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
                                          dismissed: preferences.connectCardDismissed) {
                 ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })
@@ -177,6 +181,28 @@ struct SessionListView: View {
 final class PopoverLayout {
     /// Visible height of the screen holding the menu bar icon.
     var screenHeight: CGFloat = NSScreen.main?.visibleFrame.height ?? 800
+}
+
+/// Last 24 hours of spend under the header: what the replies would cost at API list prices.
+private struct UsageStrip: View {
+    let totals: UsageTotals
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "chart.bar.fill").font(.system(size: 10)).foregroundStyle(.secondary)
+            Text(text).font(Theme.font(11, .medium)).monospacedDigit().contentTransition(.numericText())
+        }
+        .padding(.horizontal, 8).padding(.vertical, 5)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.5)))
+        .help("What the last 24 hours of Claude Code and Codex replies would cost at API list prices. Plans pay a flat price instead.")
+        .accessibilityElement(children: .combine)
+    }
+
+    private var text: String {
+        guard totals.replies > 0 else { return "Last 24 h · no usage" }
+        return "Last 24 h · \(UsageFormat.cost(totals.cost)) API value · \(UsageFormat.tokens(totals.tokens.total)) tokens"
+    }
 }
 
 /// Section title with its count. With `toggle`, the header folds its section (used for Idle).

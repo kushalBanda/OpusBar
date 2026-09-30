@@ -43,17 +43,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         discovery.start()
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
+        let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
+                               codexRoots: { UsageStore.codexRoots(environment: environment) })
+        usage.start()
         let notifier = SessionNotifier(store: store, preferences: preferences,
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
         self.notifier = notifier
         let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store,
-                                                entitlements: entitlements)
+                                                entitlements: entitlements, usage: usage)
         self.settings = settings
         NSApp.mainMenu = Self.makeMainMenu()
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
-                                          entitlements: entitlements, settings: settings) {
+                                          entitlements: entitlements, usage: usage, settings: settings) {
             discovery.scanNow()
+            usage.refresh()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
         }
         #if DEBUG

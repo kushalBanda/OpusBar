@@ -23,6 +23,7 @@ let package = Package(
                 .copy("Resources/spicetify-oneko-LICENSE.txt"), .copy("Resources/0xdhrv-oneko-LICENSE.txt"),
                 .copy("Resources/InterVariable.ttf"), .copy("Resources/Inter-LICENSE.txt"),
                 .copy("Resources/PixelifySans.ttf"), .copy("Resources/PixelifySans-LICENSE.txt"),
+                .copy("Resources/usage-prices.json"),
             ]
         ),
         .testTarget(name: "OpusBarWireTests", dependencies: ["OpusBarWire"]),
