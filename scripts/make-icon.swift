@@ -1,46 +1,38 @@
-// Renders OpusBar's app icon: an original pixel cat (drawn for OpusBar, not derived from oneko)
-// on the green brand tile. Writes a 1024 px master PNG and an .icns via iconutil.
+// Renders OpusBar's app icon: the oneko Classic cat sitting (the menu bar's idle pose) on the green
+// brand tile, so the icon is the same cat as everywhere else in the app. Classic is public-domain
+// X11 oneko art (ADR 16). Writes a 1024 px master PNG and an .icns via iconutil.
 //   swift scripts/make-icon.swift <output dir>
 import AppKit
 
-/// 22 x 22 pixel cat. K outline, W fur, P inner ear and nose, E eye, . empty.
-let cat = [
-    "......................",
-    "...KK............KK...",
-    "...KPK..........KPK...",
-    "...KPPK........KPPK...",
-    "...KPPWKKKKKKKKWPPK...",
-    "..KWWWWWWWWWWWWWWWWK..",
-    "..KWWWWWWWWWWWWWWWWK..",
-    ".KWWWWWWWWWWWWWWWWWWK.",
-    ".KWWWWEEWWWWWWEEWWWWK.",
-    ".KWWWWEEWWWWWWEEWWWWK.",
-    ".KWWWWEEWWWWWWEEWWWWK.",
-    ".KWWWWWWWWPPWWWWWWWWK.",
-    "..KWWWWWWWKKWWWWWWWK..",
-    "...KKWWWWWWWWWWWWKK...",
-    "....KWWWWWWWWWWWWK.KK.",
-    "...KWWWWWWWWWWWWWWKKWK",
-    "..KWWWWWWWWWWWWWWWWKWK",
-    "..KWWWWWWWWWWWWWWWWKWK",
-    "..KWWWWKWWWWWWKWWWWKWK",
-    "..KWWWWKWWWWWWKWWWWWK.",
-    "...KKKKKKKKKKKKKKKKK..",
-    "......................",
-]
+/// The sit frame, column 3 row 3 of the 8 x 4 sheet of 32 px frames.
+let sheetURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+    .appending(path: "../Sources/OpusBar/Resources/Coats/oneko-classic.png").standardized
+let sheet = NSBitmapImageRep(data: try Data(contentsOf: sheetURL))!.cgImage!
+let sit = sheet.cropping(to: CGRect(x: 3 * 32, y: 3 * 32, width: 32, height: 32))!
+
+/// The cat's visible pixels within the frame (x, y from the top-left), so it is centered by what
+/// the eye sees, not by the frame: the tail would otherwise push it right.
+let visible: (minX: Int, maxX: Int, minY: Int, maxY: Int) = {
+    var pixels = [UInt8](repeating: 0, count: 32 * 32 * 4)
+    let context = CGContext(data: &pixels, width: 32, height: 32, bitsPerComponent: 8, bytesPerRow: 32 * 4,
+                            space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.draw(sit, in: CGRect(x: 0, y: 0, width: 32, height: 32))
+    var box = (minX: 32, maxX: -1, minY: 32, maxY: -1)
+    // Memory rows run top-down, matching the frame's own rows.
+    for y in 0..<32 { for x in 0..<32 where pixels[(y * 32 + x) * 4 + 3] > 127 {
+        box = (min(box.minX, x), max(box.maxX, x), min(box.minY, y), max(box.maxY, y))
+    } }
+    return box
+}()
 
 func color(_ hex: UInt32) -> NSColor {
     NSColor(srgbRed: CGFloat(hex >> 16 & 0xFF) / 255, green: CGFloat(hex >> 8 & 0xFF) / 255,
             blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
 
-let palette: [Character: NSColor] = [
-    "K": color(0x2C2E2A), "W": color(0xFFFDF7), "P": color(0xEBC1FF), "E": color(0x2C2E2A),
-]
-
-/// Below 128 px a whole-pixel grid no longer fits, so small sizes are the master scaled down smoothly.
+/// Below 64 px a sprite pixel is smaller than a screen pixel, so small sizes are the master scaled down smoothly.
 func render(size: Int) -> NSBitmapImageRep {
-    guard size < 128 else { return renderExact(size: size) }
+    guard size < 64 else { return renderExact(size: size) }
     let master = renderExact(size: 1024)
     let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: size, pixelsHigh: size, bitsPerSample: 8,
                                samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
@@ -72,19 +64,18 @@ func renderExact(size: Int) -> NSBitmapImageRep {
     color(0x8ED462).setFill()
     NSBezierPath(roundedRect: tile, xRadius: 185 * s, yRadius: 185 * s).fill()
     NSGraphicsContext.restoreGraphicsState()
-    // Whole pixels only, so edges stay crisp at every size.
-    let pixel = max(1, (CGFloat(size) * 0.56 / CGFloat(cat.count)).rounded(.down))
-    let grid = pixel * CGFloat(cat.count)
-    let originX = ((CGFloat(size) - grid) / 2).rounded()
-    let originY = ((CGFloat(size) - grid) / 2 - pixel * 0.5).rounded()
-    for (row, line) in cat.enumerated() {
-        for (col, char) in line.enumerated() {
-            guard let fill = palette[char] else { continue }
-            fill.setFill()
-            NSRect(x: originX + CGFloat(col) * pixel, y: originY + CGFloat(cat.count - 1 - row) * pixel,
-                   width: pixel, height: pixel).fill()
-        }
-    }
+    // One sprite pixel = 16 px at 1024, so every size from 64 up gets whole pixels (8, 4, 2, 1) and the
+    // cat keeps the same proportion: its visible height is about half the tile, the margin Apple's
+    // icon grid gives a glyph.
+    let visibleWidth = CGFloat(visible.maxX - visible.minX + 1)
+    let visibleHeight = CGFloat(visible.maxY - visible.minY + 1)
+    let pixel = 16 * s
+    let catX = (tile.midX - visibleWidth * pixel / 2 - CGFloat(visible.minX) * pixel).rounded()
+    // Frame rows run top-down; the drawing origin is bottom-left.
+    let catY = (tile.midY - visibleHeight * pixel / 2 - CGFloat(31 - visible.maxY) * pixel).rounded()
+    let context = NSGraphicsContext.current!.cgContext
+    context.interpolationQuality = .none
+    context.draw(sit, in: CGRect(x: catX, y: catY, width: 32 * pixel, height: 32 * pixel))
     NSGraphicsContext.restoreGraphicsState()
     return rep
 }

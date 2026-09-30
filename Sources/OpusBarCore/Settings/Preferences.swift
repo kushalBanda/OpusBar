@@ -49,6 +49,12 @@ public final class Preferences {
         static let notifyError = "notifyError"
         static let notifyDone = "notifyDone"
         static let connectCardDismissed = "connectCardDismissed"
+        static let coat = "catCoat"
+        static let poses = "catPoses"
+        static let barSize = "menuBarCatSize"
+        static let barBadge = "menuBarBadge"
+        static let barEmpty = "menuBarEmpty"
+        static let barPace = "menuBarPace"
     }
 
     public var animateCat: Bool { didSet { defaults.set(animateCat, forKey: Key.animateCat) } }
@@ -59,6 +65,16 @@ public final class Preferences {
     /// Off by default: with many sessions it gets chatty.
     public var notifyDone: Bool { didSet { defaults.set(notifyDone, forKey: Key.notifyDone) } }
     public var connectCardDismissed: Bool { didSet { defaults.set(connectCardDismissed, forKey: Key.connectCardDismissed) } }
+    public var coat: CatCoat { didSet { defaults.set(coat.rawValue, forKey: Key.coat) } }
+    public var poses: CatPoses { didSet { defaults.set(poses.stored, forKey: Key.poses) } }
+    public var menuBar: MenuBarLook {
+        didSet {
+            defaults.set(menuBar.size.rawValue, forKey: Key.barSize)
+            defaults.set(menuBar.showsBadge, forKey: Key.barBadge)
+            defaults.set(menuBar.empty.rawValue, forKey: Key.barEmpty)
+            defaults.set(menuBar.pace.rawValue, forKey: Key.barPace)
+        }
+    }
 
     @ObservationIgnored private let defaults: UserDefaults
 
@@ -71,6 +87,13 @@ public final class Preferences {
         notifyError = defaults.object(forKey: Key.notifyError) as? Bool ?? true
         notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? false
         connectCardDismissed = defaults.bool(forKey: Key.connectCardDismissed)
+        coat = defaults.string(forKey: Key.coat).flatMap(CatCoat.init) ?? .classic
+        poses = CatPoses(stored: defaults.dictionary(forKey: Key.poses) as? [String: String] ?? [:])
+        menuBar = MenuBarLook(
+            size: defaults.string(forKey: Key.barSize).flatMap(MenuBarCatSize.init) ?? .medium,
+            showsBadge: defaults.object(forKey: Key.barBadge) as? Bool ?? true,
+            empty: defaults.string(forKey: Key.barEmpty).flatMap(EmptyMenuBarCat.init) ?? .dimmed,
+            pace: defaults.string(forKey: Key.barPace).flatMap(CatPace.init) ?? .normal)
     }
 
     public var notificationRules: NotificationRules {

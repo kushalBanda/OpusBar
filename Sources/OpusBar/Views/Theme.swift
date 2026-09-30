@@ -1,5 +1,6 @@
 import AppKit
 import CoreText
+import OpusBarCore
 import SwiftUI
 
 /// Mockup tokens (`mockups/_base.css`): beige canvas, charcoal ink, flat state tiles.
@@ -160,5 +161,29 @@ extension EnvironmentValues {
     var catAnimates: Bool {
         get { self[CatAnimatesKey.self] }
         set { self[CatAnimatesKey.self] = newValue }
+    }
+}
+
+/// Which coat the cat wears. Settings writes it; a preview tile can override it for its own cat.
+private struct CatCoatKey: EnvironmentKey {
+    static let defaultValue = CatCoat.classic
+}
+
+extension EnvironmentValues {
+    var catCoat: CatCoat {
+        get { self[CatCoatKey.self] }
+        set { self[CatCoatKey.self] = newValue }
+    }
+}
+
+/// What the cat does per state. Settings writes it; a preview tile can override it for its own cat.
+private struct CatPosesKey: EnvironmentKey {
+    static let defaultValue = CatPoses.defaults
+}
+
+extension EnvironmentValues {
+    var catPoses: CatPoses {
+        get { self[CatPosesKey.self] }
+        set { self[CatPosesKey.self] = newValue }
     }
 }

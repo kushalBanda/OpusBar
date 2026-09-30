@@ -199,3 +199,112 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+
+================================================================================
+THIRD-PARTY NOTICES
+================================================================================
+
+OpusBar's own code is licensed under the Apache License 2.0 above. OpusBar.app
+also ships the following third-party material, under its own terms. The full
+license texts of the MIT and OFL items also travel inside the app bundle
+(Contents/Resources), as those licenses require.
+
+--------------------------------------------------------------------------------
+oneko cat sprites: Coats/oneko-classic.png, oneko-tora.png
+--------------------------------------------------------------------------------
+The X11 oneko cat, drawn by Juan Gotoh for neko DA, turned into bitmaps by
+Masayuki Koba for xneko, and reused by Tatsuya Kato's oneko. Distributed as
+free to use, modify and redistribute, and treated as public domain by Debian,
+the FSF and Fedora. Sheets as packaged by adryd325/oneko.js, tie/oneko and
+0xdhrv/oneko (256 x 128 PNG, oneko.js layout).
+
+Coats/oneko-black.png, oneko-gray.png, oneko-silver.png and oneko-ghost.png are
+OpusBar's own recolours of the public-domain Classic sheet, made by
+scripts/make-recolors.swift, and are covered by OpusBar's license above.
+
+--------------------------------------------------------------------------------
+Catppuccin cat sprites: oneko-catppuccin.png
+--------------------------------------------------------------------------------
+From catppuccineko by k01e, https://github.com/k01e-01/catppuccineko
+
+MIT License
+
+Copyright (c) 2025 k01e
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+Maia and Vaporwave cat sprites: Coats/oneko-maia.png, oneko-vaporwave.png
+--------------------------------------------------------------------------------
+From spicetify-oneko, https://github.com/kyrie25/spicetify-oneko, a fork of
+adryd325/oneko.js, as packaged by 0xdhrv/oneko.
+
+Copyright © 2022 adryd
+Copyright © 2026 kyrie25
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the “Software”), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+--------------------------------------------------------------------------------
+Generated coats: Coats/oneko-ginger.png, sage, siamese, strawberry-milk,
+blue-frost, lavender, tuxedo, peach, honey, mocha, mint, midnight-blue
+--------------------------------------------------------------------------------
+Generated from the public-domain Classic sheet by the 0xdhrv/oneko project,
+https://github.com/0xdhrv/oneko (docs/skins.md, "Generated coat variants").
+
+MIT License
+
+Copyright (c) 0xdhrv
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+Inter font: InterVariable.ttf
+--------------------------------------------------------------------------------
+Copyright (c) 2016 The Inter Project Authors (https://github.com/rsms/inter).
+SIL Open Font License, Version 1.1. Full text: Inter-LICENSE.txt in the app
+bundle, and https://openfontlicense.org
+
+--------------------------------------------------------------------------------
+Pixelify Sans font: PixelifySans.ttf
+--------------------------------------------------------------------------------
+Copyright 2021 The Pixelify Sans Project Authors
+(https://github.com/eifetx/Pixelify-Sans). SIL Open Font License, Version 1.1.
+Full text: PixelifySans-LICENSE.txt in the app bundle, and
+https://openfontlicense.org

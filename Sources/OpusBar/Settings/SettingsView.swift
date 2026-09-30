@@ -2,13 +2,14 @@ import OpusBarCore
 import SwiftUI
 
 enum SettingsPane: String, CaseIterable, Identifiable {
-    case general, agents, notifications, license, about
+    case general, cat, agents, notifications, license, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .general: "General"
+        case .cat: "Cat"
         case .agents: "Agents"
         case .notifications: "Notifications"
         case .license: "License"
@@ -19,6 +20,7 @@ enum SettingsPane: String, CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .general: "gearshape"
+        case .cat: "cat"
         case .agents: "powerplug"
         case .notifications: "bell"
         case .license: "key"
@@ -28,7 +30,8 @@ enum SettingsPane: String, CaseIterable, Identifiable {
 
     var iconFill: Color {
         switch self {
-        case .general: Theme.idle
+        case .general: Color(hex: 0xC2BCAD) // fixed warm grey: the dark glyph needs a light tile in both modes
+        case .cat: Theme.green // same tile as the identity card and app icon
         case .agents: Theme.pink
         case .notifications: Theme.yellow
         case .license: Theme.green
@@ -82,6 +85,8 @@ struct SettingsView: View {
         .background(Theme.canvas)
         .foregroundStyle(Theme.ink)
         .environment(\.catAnimates, preferences.animateCat)
+        .environment(\.catCoat, preferences.coat)
+        .environment(\.catPoses, preferences.poses)
         .font(Theme.font(13)) // default for buttons and labels without their own font
         .frame(width: 820, height: 600)
     }
@@ -123,6 +128,7 @@ struct SettingsView: View {
     private var pane: some View {
         switch navigation.pane {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
+        case .cat: CatPane(preferences: preferences)
         case .agents: AgentsSettingsView(model: hooks, store: store)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier)
         case .license: LicensePane(entitlements: entitlements)
@@ -139,9 +145,7 @@ private struct SidebarRow: View {
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
-                Image(systemName: pane.systemImage)
-                    .font(Theme.font(12, .medium))
-                    .foregroundStyle(Theme.onColor)
+                icon
                     .frame(width: 24, height: 24)
                     .background(RoundedRectangle(cornerRadius: 7).fill(pane.iconFill))
                 Text(pane.title).font(Theme.font(13, .medium))
@@ -154,6 +158,18 @@ private struct SidebarRow: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The Cat pane shows the chosen coat in its idle pose, held still; 16 pt keeps the 32 px frame 1:1 on Retina.
+    @ViewBuilder
+    private var icon: some View {
+        if pane == .cat {
+            CatView(state: nil, points: 16).environment(\.catAnimates, false)
+        } else {
+            Image(systemName: pane.systemImage)
+                .font(Theme.font(12, .medium))
+                .foregroundStyle(Theme.onColor)
+        }
     }
 }
 
@@ -376,7 +392,7 @@ private struct PlanBadge: View {
             .font(Theme.font(10, .semibold))
             .padding(.horizontal, 7).padding(.vertical, 2)
             .foregroundStyle(isPro ? Theme.onColor : Theme.ink)
-            .background(Capsule().fill(isPro ? Theme.green : Theme.canvas2))
+            .background(Capsule().fill(isPro ? Theme.green : Theme.ink.opacity(0.12))) // canvas2 matches the dark card, hiding the chip
             .accessibilityLabel(isPro ? "Plan: Pro" : "Plan: Free")
     }
 }

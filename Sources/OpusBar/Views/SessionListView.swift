@@ -66,6 +66,8 @@ struct SessionListView: View {
         #endif
         .font(Theme.font(13))
         .environment(\.catAnimates, preferences.animateCat)
+        .environment(\.catCoat, preferences.coat)
+        .environment(\.catPoses, preferences.poses)
     }
 
     /// Tallest the list may grow before it scrolls: most of the screen, leaving room for the menu bar,

@@ -8,9 +8,11 @@ struct CatView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.catAnimates) private var catAnimates
+    @Environment(\.catCoat) private var coat
+    @Environment(\.catPoses) private var poses
 
     var body: some View {
-        let animation = CatAnimation.for(state)
+        let animation = CatAnimation.for(state, poses: poses)
         if animation.isAnimated && catAnimates && !reduceMotion {
             TimelineView(.animation(minimumInterval: animation.interval)) { context in
                 frame(animation, index: Int(context.date.timeIntervalSinceReferenceDate / animation.interval))
@@ -23,7 +25,7 @@ struct CatView: View {
     @ViewBuilder
     private func frame(_ animation: CatAnimation, index: Int) -> some View {
         let f = animation.frames[index % animation.frames.count]
-        if let image = CatSheet.shared.frame(col: f.col, row: f.row) {
+        if let image = CatSheet.sheet(for: coat).frame(col: f.col, row: f.row) {
             Image(decorative: image, scale: CGFloat(CatSheet.framePixels) / points)
                 .interpolation(.none)
                 .frame(width: points, height: points)

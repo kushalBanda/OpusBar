@@ -47,9 +47,26 @@ final class PreferencesTests: XCTestCase {
         let defaults = freshDefaults()
         defaults.set("forever", forKey: "finishedRetention")
         defaults.set("emoji", forKey: "sessionNaming")
+        defaults.set("calico", forKey: "catCoat") // unlicensed upstream, never shipped (ADR 17)
         let prefs = Preferences(defaults: defaults)
         XCTAssertEqual(prefs.retention, .tenMinutes)
         XCTAssertEqual(prefs.naming, .folder)
+        XCTAssertEqual(prefs.coat, .classic)
+    }
+
+    @MainActor
+    func testCoatPersists() {
+        let defaults = freshDefaults()
+        Preferences(defaults: defaults).coat = .tora
+        XCTAssertEqual(Preferences(defaults: defaults).coat, .tora)
+    }
+
+    func testEveryCoatHasItsSheetInTheBundle() throws {
+        let resources = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .appending(path: "../../Sources/OpusBar/Resources/Coats").standardized
+        for coat in CatCoat.allCases {
+            XCTAssertTrue(FileManager.default.fileExists(atPath: resources.appending(path: coat.sheetName + ".png").path), coat.rawValue)
+        }
     }
 
     func testRetentionSeconds() {

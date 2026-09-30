@@ -19,7 +19,8 @@ let package = Package(
             name: "OpusBar",
             dependencies: ["OpusBarCore", "OpusBarWire"],
             resources: [
-                .copy("Resources/oneko-classic.png"), .copy("Resources/CREDITS.md"),
+                .copy("Resources/Coats"), .copy("Resources/Catppuccineko-LICENSE.txt"),
+                .copy("Resources/spicetify-oneko-LICENSE.txt"), .copy("Resources/0xdhrv-oneko-LICENSE.txt"),
                 .copy("Resources/InterVariable.ttf"), .copy("Resources/Inter-LICENSE.txt"),
                 .copy("Resources/PixelifySans.ttf"), .copy("Resources/PixelifySans-LICENSE.txt"),
             ]

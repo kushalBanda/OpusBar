@@ -13,29 +13,35 @@ struct CatAnimation: Equatable {
         a.interval == b.interval && a.frames.map { [$0.col, $0.row] } == b.frames.map { [$0.col, $0.row] }
     }
 
-    static let idle = CatAnimation(frames: [(3, 3)], interval: 0)                          // sits
-    static let working = CatAnimation(frames: [(3, 0), (3, 1)], interval: 0.3)             // runs in place, an easy trot
-    static let thinking = CatAnimation(frames: [(5, 0), (6, 0), (7, 0), (6, 0)], interval: 0.22) // grooms
-    static let attention = CatAnimation(frames: [(7, 3)], interval: 0)                     // alert, ears up
-    static let done = CatAnimation(frames: [(2, 0), (2, 1)], interval: 0.7)               // naps
-    static let error = CatAnimation(frames: [(3, 2)], interval: 0)                         // slumps
+    init(frames: [(col: Int, row: Int)], interval: TimeInterval) {
+        self.frames = frames
+        self.interval = interval
+    }
 
-    static func `for`(_ state: SessionState?) -> CatAnimation {
-        switch state {
-        case nil, .idle: .idle
-        case .working: .working
-        case .thinking: .thinking
-        case .needsAttention: .attention
-        case .done: .done
-        case .error: .error
-        }
+    init(pose: CatPose) {
+        self.init(frames: pose.frames, interval: pose.interval)
+    }
+
+    static let idle = CatAnimation(pose: .sit)
+
+    /// What the cat does for a state, per the user's poses (Cat pane).
+    static func `for`(_ state: SessionState?, poses: CatPoses = .defaults) -> CatAnimation {
+        CatAnimation(pose: poses.pose(for: state))
     }
 }
 
 /// A 256 x 128 sprite sheet sliced into 32 px frames.
 final class CatSheet {
     static let framePixels = 32
-    static let shared = CatSheet(named: "oneko-classic")
+    private static var sheets: [CatCoat: CatSheet] = [:]
+
+    /// One sheet per coat, loaded the first time it's shown.
+    static func sheet(for coat: CatCoat) -> CatSheet {
+        if let sheet = sheets[coat] { return sheet }
+        let sheet = CatSheet(named: coat.sheetName)
+        sheets[coat] = sheet
+        return sheet
+    }
 
     private let sheet: CGImage?
     private var cache: [Int: CGImage] = [:]
@@ -58,8 +64,8 @@ final class CatSheet {
     /// Packaged app: Contents/Resources. `swift run`: the SwiftPM resource bundle next to the executable.
     /// Avoids `Bundle.module`, which traps when its bundle is missing.
     private static func url(forSheet name: String) -> URL? {
-        if let url = Bundle.main.url(forResource: name, withExtension: "png") { return url }
+        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Coats") { return url }
         let dev = Bundle.main.bundleURL.appending(path: "OpusBar_OpusBar.bundle")
-        return Bundle(url: dev)?.url(forResource: name, withExtension: "png")
+        return Bundle(url: dev)?.url(forResource: name, withExtension: "png", subdirectory: "Coats")
     }
 }

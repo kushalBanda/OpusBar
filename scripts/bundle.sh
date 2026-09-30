@@ -27,7 +27,9 @@ mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
 cp "$BIN/OpusBar" "$APP/Contents/MacOS/OpusBar"
 cp "$BIN/opusbar-hook" "$APP/Contents/Helpers/opusbar-hook"
 # Flat copies so Bundle.main finds them; the SwiftPM resource bundle is only for `swift run`.
-cp Sources/OpusBar/Resources/oneko-classic.png Sources/OpusBar/Resources/CREDITS.md \
+cp -R Sources/OpusBar/Resources/Coats "$APP/Contents/Resources/"
+cp Sources/OpusBar/Resources/Catppuccineko-LICENSE.txt Sources/OpusBar/Resources/spicetify-oneko-LICENSE.txt \
+   Sources/OpusBar/Resources/0xdhrv-oneko-LICENSE.txt \
    Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt \
    Sources/OpusBar/Resources/PixelifySans.ttf Sources/OpusBar/Resources/PixelifySans-LICENSE.txt "$APP/Contents/Resources/"
 

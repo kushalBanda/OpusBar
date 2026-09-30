@@ -7,11 +7,6 @@ import SwiftUI
 @MainActor
 final class StatusItemController: NSObject {
     static let activityWindow: TimeInterval = 30
-    /// Menu bar frames never tick faster than this; each tick costs a status bar redraw.
-    static let minFrameInterval: TimeInterval = 0.25
-    /// Menu bar cat size. 20 pt (40 px on Retina from the 32 px frame) reads better than the 1:1 16 pt;
-    /// nearest-neighbor keeps the pixels hard-edged.
-    static let catPoints: CGFloat = 20
 
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     /// The dropdown is a real menu with one item hosting the SwiftUI list. While a menu is open macOS
@@ -33,6 +28,7 @@ final class StatusItemController: NSObject {
     private var lastActivity = Date()
     private var frameTimer: Timer?
     private var catAnimates = true
+    private var look = MenuBarLook()
     /// Composed status images keyed by frame + badge, so animation just swaps cached images.
     private var imageCache: [String: NSImage] = [:]
 
@@ -66,19 +62,21 @@ final class StatusItemController: NSObject {
     /// Any session change counts as activity; re-arms itself after each change.
     /// The Motion setting is tracked too, so turning it off stops the cat at once.
     private func observeStore() {
-        let (_, aggregate, animates) = withObservationTracking {
-            (store.state, store.aggregate, preferences.animateCat)
+        let (_, aggregate, animates, _, poses, look) = withObservationTracking {
+            (store.state, store.aggregate, preferences.animateCat, preferences.coat, preferences.poses, preferences.menuBar)
         } onChange: {
             Task { @MainActor [weak self] in self?.observeStore() }
         }
         self.aggregate = aggregate
         lastActivity = Date()
-        let next = CatAnimation.for(aggregate.state)
-        if next != animation || frameTimer == nil || animates != catAnimates {
+        let next = CatAnimation(pose: look.pose(for: aggregate.state, poses: poses))
+        if next != animation || frameTimer == nil || animates != catAnimates || look.pace != self.look.pace {
             animation = next
             catAnimates = animates
+            self.look = look
             restartFrames()
         } else {
+            self.look = look
             draw()
         }
     }
@@ -93,7 +91,7 @@ final class StatusItemController: NSObject {
         frameIndex = 0
         draw()
         guard animation.isAnimated, catAnimates, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion else { return }
-        let interval = max(animation.interval, Self.minFrameInterval)
+        let interval = look.frameInterval(for: animation.interval)
         let timer = Timer(timeInterval: interval, repeats: true) { _ in
             Task { @MainActor [weak self] in self?.tick() }
         }
@@ -117,23 +115,24 @@ final class StatusItemController: NSObject {
     private func draw() {
         guard let button = statusItem.button else { return }
         let frame = animation.frames[frameIndex % animation.frames.count]
-        let cat = CatSheet.shared.frame(col: frame.col, row: frame.row)
-        let badge = Self.badge(for: aggregate)
-        let dimmed = aggregate.state == nil
-        let key = "\(frame.col),\(frame.row),\(badge?.text ?? "-"),\(dimmed)"
+        let cat = CatSheet.sheet(for: preferences.coat).frame(col: frame.col, row: frame.row)
+        let badge = look.showsBadge ? Self.badge(for: aggregate) : nil
+        let alpha = look.alpha(hasSessions: aggregate.state != nil)
+        let points = CGFloat(look.catPoints(barThickness: NSStatusBar.system.thickness))
+        let key = "\(preferences.coat.rawValue),\(frame.col),\(frame.row),\(badge?.text ?? "-"),\(alpha),\(points)"
         if let cached = imageCache[key] {
             if button.image !== cached { button.image = cached }
             button.setAccessibilityLabel(accessibilityLabel)
             return
         }
-        let size = NSSize(width: badge == nil ? Self.catPoints + 2 : Self.catPoints + 9, height: Self.catPoints + 2)
+        let size = NSSize(width: badge == nil ? points + 2 : points + 9, height: points + 2)
 
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
             context.interpolationQuality = .none
             if let cat {
-                context.setAlpha(dimmed ? 0.5 : 1)
-                context.draw(cat, in: CGRect(x: 1, y: 1, width: Self.catPoints, height: Self.catPoints))
+                context.setAlpha(alpha)
+                context.draw(cat, in: CGRect(x: 1, y: 1, width: points, height: points))
                 context.setAlpha(1)
             }
             if let badge {
