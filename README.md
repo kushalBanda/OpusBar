@@ -39,9 +39,9 @@ OpusBar puts every running session in your menu bar. The cat takes on the state 
 A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list: each session's folder, git branch, agent, and how long it has been running.
 
 <p align="center">
-  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: payments-api needs you to allow Bash, web-app and infra are working, design-system is done, ml-pipeline is thinking. Each row shows the agent, git branch and elapsed time">
+  <img src="docs/assets/menu-sessions.png" width="340" align="top" alt="The OpusBar menu, Sessions tab: payments-api needs you to allow Bash, web-app and infra are working, design-system is done, ml-pipeline is thinking. Each row shows the agent, git branch and elapsed time">
   &nbsp;
-  <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: Claude Code and Codex plan limits with time to reset, then 24 hours of API value as a bar chart split by agent, with the top models and projects">
+  <img src="docs/assets/menu-usage.png" width="340" align="top" alt="The OpusBar menu, Usage tab: Claude Code and Codex plan limits with time to reset, then 24 hours of API value as a bar chart split by agent, with the top models and projects">
 </p>
 
 <p align="center"><sub>The menu: every session, and your limits and spend one tab over. Shown with sample data.</sub></p>
@@ -128,14 +128,6 @@ Everything stays on your Mac. There's no account, no telemetry and no analytics.
 **It sends:** one request, a daily update check to GitHub carrying only OpusBar's version. Turn it off in **Settings › About**.
 
 **Your agents come first.** The hook has a 200 ms deadline and exits quietly when OpusBar isn't running, so your agents never wait on it.
-
-## Uninstall
-
-1. In **Settings › Agents**, click **Disconnect** for each agent. This removes the hooks and puts your own status line back.
-2. Quit OpusBar and drag it to the Trash.
-3. Optionally, delete `~/Library/Application Support/OpusBar`.
-
-Do step 1 first. Otherwise Claude Code's status line points at a helper that no longer exists and goes blank.
 
 ## Troubleshooting
 
