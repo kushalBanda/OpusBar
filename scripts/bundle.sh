@@ -19,16 +19,28 @@ if [[ -z "${DEVELOPER_DIR:-}" && -d /Applications/Xcode.app/Contents/Developer ]
 fi
 
 cd "$ROOT"
-ARCH_FLAGS=()
-for arch in ${ARCHES:-}; do ARCH_FLAGS+=(--arch "$arch"); done
-swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product OpusBar
-swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --product opusbar-hook
-BIN="$(swift build -c "$CONFIG" ${ARCH_FLAGS[@]+"${ARCH_FLAGS[@]}"} --show-bin-path)"
+build() {  # build <extra swift build flags...>; prints the bin path
+  swift build -c "$CONFIG" "$@" --product OpusBar >&2
+  swift build -c "$CONFIG" "$@" --product opusbar-hook >&2
+  swift build -c "$CONFIG" "$@" --show-bin-path
+}
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Helpers" "$APP/Contents/Resources"
-cp "$BIN/OpusBar" "$APP/Contents/MacOS/OpusBar"
-cp "$BIN/opusbar-hook" "$APP/Contents/Helpers/opusbar-hook"
+if [[ -z "${ARCHES:-}" ]]; then
+  BIN="$(build)"
+  cp "$BIN/OpusBar" "$APP/Contents/MacOS/OpusBar"
+  cp "$BIN/opusbar-hook" "$APP/Contents/Helpers/opusbar-hook"
+else
+  # One build per arch, joined with lipo: a multi-arch `swift build` needs Xcode's xcbuild, this doesn't.
+  apps=() hooks=()
+  for arch in $ARCHES; do
+    BIN="$(build --triple "$arch-apple-macosx14.0")"
+    apps+=("$BIN/OpusBar") hooks+=("$BIN/opusbar-hook")
+  done
+  lipo -create "${apps[@]}" -output "$APP/Contents/MacOS/OpusBar"
+  lipo -create "${hooks[@]}" -output "$APP/Contents/Helpers/opusbar-hook"
+fi
 # Flat copies so Bundle.main finds them; the SwiftPM resource bundle is only for `swift run`.
 cp -R Sources/OpusBar/Resources/Coats "$APP/Contents/Resources/"
 cp Sources/OpusBar/Resources/Catppuccineko-LICENSE.txt Sources/OpusBar/Resources/spicetify-oneko-LICENSE.txt \
