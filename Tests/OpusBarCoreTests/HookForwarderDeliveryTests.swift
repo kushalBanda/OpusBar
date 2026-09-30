@@ -40,6 +40,25 @@ final class HookForwarderDeliveryTests: XCTestCase {
         XCTAssertEqual(event.e, SlimEvent(sessionId: "live", event: .preToolUse, cwd: "/p", toolName: "Edit"))
     }
 
+    func testLeftoverPiExtensionIsNeverReportedAsClaude() throws {
+        let home = URL(filePath: "/tmp/obp-\(UUID().uuidString.prefix(6))", directoryHint: .isDirectory)
+        defer { try? FileManager.default.removeItem(at: home) }
+        let paths = OpusBarPaths(home: home)
+        let received = expectation(description: "nothing delivered")
+        received.isInverted = true
+        let server = SocketServer(path: paths.socket.path) { _ in received.fulfill() }
+        try server.start()
+        defer { server.stop() }
+
+        let pipe = Pipe()
+        pipe.fileHandleForWriting.write(Data(#"{"session_id":"pi-1","hook_event_name":"Stop","cwd":"/p"}"#.utf8))
+        try pipe.fileHandleForWriting.close()
+        let code = HookForwarder.run(stdin: pipe.fileHandleForReading, arguments: ["--agent", "pi"], environment: [:],
+                                     parentPID: 1, nowMs: { 1 }, paths: paths)
+        XCTAssertEqual(code, 0)
+        wait(for: [received], timeout: 0.3)
+    }
+
     func testServerDropsMalformedLineAndKeepsServing() throws {
         let path = "/tmp/obm-\(UUID().uuidString.prefix(6))/events.sock"
         defer { try? FileManager.default.removeItem(atPath: (path as NSString).deletingLastPathComponent) }

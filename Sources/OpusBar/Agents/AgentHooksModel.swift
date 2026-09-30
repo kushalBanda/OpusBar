@@ -3,7 +3,7 @@ import Observation
 import OpusBarCore
 import OpusBarWire
 
-/// Everything OpusBar can connect (Claude profiles, Codex, pi, OMP) and its status, for Settings.
+/// Everything OpusBar can connect (Claude profiles, Codex) and its status, for Settings.
 /// Install and uninstall run only on a user click.
 @MainActor @Observable
 final class AgentHooksModel {
@@ -47,7 +47,6 @@ final class AgentHooksModel {
     func refresh() {
         let targets = ClaudeProfiles.all(environment: environment, userAdded: userAddedFolders).map(HookTarget.claude)
             + [HookTarget.codex(environment: environment)].compactMap { $0 }
-            + HookTarget.piFamily(.pi, environment: environment) + HookTarget.piFamily(.omp, environment: environment)
         rows = targets.map { Row(target: $0, status: $0.status(paths: paths)) }
     }
 
@@ -75,33 +74,6 @@ final class AgentHooksModel {
         refresh()
     }
 
-    /// pi/OMP session folders the user added, so discovery finds sessions kept outside the defaults.
-    func piFamilyFolders(for agent: AgentKind) -> [String] { PiFamilyFolders.folders(for: agent, defaults: defaults) }
-
-    func addPiFamilyFolder(for agent: AgentKind) {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.showsHiddenFiles = true
-        panel.directoryURL = ClaudeConfigPaths.homeDirectory(environment: environment)
-        panel.message = "Choose the folder where \(agent.displayName) keeps its session files."
-        panel.prompt = "Add Folder"
-        NSApp.activate(ignoringOtherApps: true)
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        var folders = piFamilyFolders(for: agent)
-        if !folders.contains(url.path) { folders.append(url.path) }
-        defaults.set(folders, forKey: PiFamilyFolders.key(for: agent))
-        folderRevision += 1
-    }
-
-    func removePiFamilyFolder(_ path: String, for agent: AgentKind) {
-        defaults.set(piFamilyFolders(for: agent).filter { $0 != path }, forKey: PiFamilyFolders.key(for: agent))
-        folderRevision += 1
-    }
-
-    /// Bumped when pi/OMP folders change, so the pane re-reads them.
-    private(set) var folderRevision = 0
-
     func removeClaudeFolder(_ target: HookTarget) {
         defaults.set(userAddedFolders.filter { URL(fileURLWithPath: $0).standardizedFileURL != target.root },
                      forKey: ClaudeProfiles.userDefaultsKey)
@@ -112,8 +84,6 @@ final class AgentHooksModel {
         do {
             _ = try action()
             lastError = nil
-        } catch HookInstaller.InstallError.unreadable(let reason) where target.isExtension {
-            lastError = "\(reason) in \(target.fileURL.deletingLastPathComponent().path), and it isn't OpusBar's. Rename or remove it, then connect again."
         } catch HookInstaller.InstallError.unreadable(let reason) {
             lastError = "The hooks file can't be read (\(reason)). Fix it by hand; OpusBar won't touch it."
         } catch {

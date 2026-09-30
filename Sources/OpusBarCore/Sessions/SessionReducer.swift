@@ -8,9 +8,6 @@ public enum SessionReducer {
         "permission_prompt", "elicitation_dialog", "elicitation_url_dialog", "agent_needs_input",
     ]
 
-    /// Stop reason the pi/OMP extension sends for an interrupted turn.
-    public static let abortedReason = "aborted"
-
     public static func reduce(_ state: SessionsState, _ event: WireEvent, now: Date) -> SessionsState {
         var state = state
         let e = event.e
@@ -71,8 +68,7 @@ public enum SessionReducer {
         case .subagentStop:
             session.subagents = max(0, session.subagents - 1)
         case .stop:
-            // pi/OMP send `reason: aborted` when the user interrupted the turn: nothing finished.
-            session.transition(to: e.reason == Self.abortedReason ? .idle : .done, detail: nil, now: now)
+            session.transition(to: .done, detail: nil, now: now)
             session.subagents = 0
             session.turnStartedAt = nil
         case .stopFailure:

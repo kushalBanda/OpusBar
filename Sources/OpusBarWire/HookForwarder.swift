@@ -15,6 +15,11 @@ public enum HookForwarder {
         paths: OpusBarPaths
     ) -> Int32 {
         let ts = nowMs()
+        // Removed agents (pi, OMP) may still have an extension calling us: never report them as Claude.
+        guard !AgentKind.namesUnknownAgent(arguments) else {
+            _ = readCapped(stdin)
+            return 0
+        }
         guard let input = readCapped(stdin) else { return 0 }
         guard let slim = try? SlimEvent.slim(hookJSON: input) else { return 0 }
         let event = WireEvent(ts: ts, pid: parentPID, term: TermInfo.from(environment: environment),

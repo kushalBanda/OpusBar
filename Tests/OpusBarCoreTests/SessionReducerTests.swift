@@ -209,7 +209,6 @@ final class HookActivityTests: XCTestCase {
         store.apply(WireEvent(ts: 3, agent: .codex, e: SlimEvent(sessionId: "x", event: .stop, cwd: "/p")))
         XCTAssertEqual(store.hookActivity[.claude], SessionStore.HookActivity(lastEventAt: clock, lastEvent: .preToolUse, count: 2))
         XCTAssertEqual(store.hookActivity[.codex]?.count, 1)
-        XCTAssertNil(store.hookActivity[.pi])
     }
 }
 

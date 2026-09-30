@@ -145,10 +145,9 @@ private struct SessionDetails: View {
     }
 
     private var liveStatesHint: String {
-        let restart = session.agent == .pi || session.agent == .omp ? "run /reload in it or restart it" : "restart it"
-        return agentConnected
-            ? "This session started before OpusBar was connected. To see its live state here, \(restart)."
-            : "Connect \(session.agent.displayName) in Settings, then \(restart), to see its live state here."
+        agentConnected
+            ? "This session started before OpusBar was connected. To see its live state here, restart it."
+            : "Connect \(session.agent.displayName) in Settings, then restart it, to see its live state here."
     }
 
     private func row(_ label: String, _ value: String) -> some View {

@@ -59,28 +59,6 @@ final class SessionRecordReaderTests: XCTestCase {
         XCTAssertNil(meta?.cwd)
     }
 
-    func testPiFamilyHeaders() {
-        let v3 = Data(#"{"type":"session","version":3,"id":"pi-1","timestamp":"t","cwd":"/p"}"#.utf8)
-        let v2 = Data(#"{"type":"session","version":2,"id":"old","cwd":"/p"}"#.utf8)
-        let title = Data(#"{"type":"title","title":"Fix"}"#.utf8)
-        let omp = Data(#"{"type":"session","id":"omp-1","cwd":"/q"}"#.utf8)
-        XCTAssertEqual(SessionRecordReader.piFamilyHeader([v3], dialect: .pi)?.id, "pi-1")
-        XCTAssertNil(SessionRecordReader.piFamilyHeader([v2], dialect: .pi))
-        XCTAssertEqual(SessionRecordReader.piFamilyHeader([title, omp], dialect: .omp)?.cwd, "/q")
-    }
-
-    func testPiFamilyRecordsSkipBucketsOlderThanProcesses() throws {
-        let header = #"{"type":"session","version":3,"id":"ID","cwd":"/p/blog"}"#
-        try write(header.replacingOccurrences(of: "ID", with: "fresh") + "\n", "pi/--p-blog--/a.jsonl")
-        try write(header.replacingOccurrences(of: "ID", with: "stale") + "\n", "pi/--p-old--/b.jsonl", modified: now.addingTimeInterval(-7200))
-        try FileManager.default.setAttributes([.modificationDate: now.addingTimeInterval(-7200)],
-                                              ofItemAtPath: root.appending(path: "pi/--p-old--").path)
-        var budget = ScanBudget()
-        let records = SessionRecordReader.piFamilyRecords(roots: [root.appending(path: "pi")], dialect: .pi,
-                                                          since: now.addingTimeInterval(-60), now: now, budget: &budget)
-        XCTAssertEqual(records.map(\.id), ["fresh"])
-    }
-
     func testFirstLinesStopsAtCap() throws {
         let url = try write(String(repeating: "x", count: 400_000), "big.jsonl")
         XCTAssertTrue(SessionRecordReader.firstLines(of: url, count: 1).isEmpty, "a header longer than the cap is ignored")
@@ -121,15 +99,15 @@ final class SessionCorrelatorTests: XCTestCase {
     }
 
     func testAgentsNeverCrossMatch() {
-        let pi = DiscoveredProcess(pid: 1, agent: .pi, cwd: "/p", startedAt: t0)
-        XCTAssertTrue(SessionCorrelator.match([pi], records: [record("o", .omp, cwd: "/p", at: 5)]).isEmpty)
+        let codex = DiscoveredProcess(pid: 1, agent: .codex, cwd: "/p", startedAt: t0)
+        XCTAssertTrue(SessionCorrelator.match([codex], records: [record("c", .claude, cwd: "/p", at: 5)]).isEmpty)
     }
 }
 
 final class DiscoveryStoreTests: XCTestCase {
     private func found(_ pid: Int32, id: String?, at: Date?) -> DiscoveredProcess {
-        DiscoveredProcess(pid: pid, agent: .pi, cwd: "/p/blog", startedAt: Date(timeIntervalSince1970: 0),
-                          record: id.map { SessionRecord(id: $0, agent: .pi, cwd: "/p/blog", modifiedAt: at!, path: "/r/\($0)") })
+        DiscoveredProcess(pid: pid, agent: .codex, cwd: "/p/blog", startedAt: Date(timeIntervalSince1970: 0),
+                          record: id.map { SessionRecord(id: $0, agent: .codex, cwd: "/p/blog", modifiedAt: at!, path: "/r/\($0)") })
     }
 
     @MainActor func testRecordGivesRealIdAndActiveThenIdle() {
@@ -137,11 +115,11 @@ final class DiscoveryStoreTests: XCTestCase {
         let store = SessionStore(now: { clock }, isAlive: { _ in true }, branchReader: { _ in nil })
         store.applyDiscovery([found(5, id: nil, at: nil)])
         XCTAssertEqual(store.sessions.map(\.id), ["pid:5"])
-        store.applyDiscovery([found(5, id: "pi-1", at: clock.addingTimeInterval(-10))])
-        XCTAssertEqual(store.sessions.map(\.id), ["pi-1"], "pid row upgraded to the real id")
+        store.applyDiscovery([found(5, id: "codex-1", at: clock.addingTimeInterval(-10))])
+        XCTAssertEqual(store.sessions.map(\.id), ["codex-1"], "pid row upgraded to the real id")
         XCTAssertEqual(store.sessions.first?.state, .working)
         clock = clock.addingTimeInterval(300)
-        store.applyDiscovery([found(5, id: "pi-1", at: Date(timeIntervalSince1970: 990))])
+        store.applyDiscovery([found(5, id: "codex-1", at: Date(timeIntervalSince1970: 990))])
         XCTAssertEqual(store.sessions.first?.state, .idle)
         XCTAssertEqual(store.aggregate.state, .idle)
     }

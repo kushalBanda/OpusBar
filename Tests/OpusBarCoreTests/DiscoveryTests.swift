@@ -19,7 +19,6 @@ final class AgentProcessClassifierTests: XCTestCase {
         XCTAssertNil(kind(["/usr/local/bin/claude-code-acp", "x"]))
         XCTAssertNil(kind(["codex", "app-server"]))
         XCTAssertNil(kind(["codex", "--version"]))
-        XCTAssertNil(kind(["omp", "--smoke-test"]))
         XCTAssertNil(kind(["/Users/me/.local/bin/claude", "--chrome-native-host"]))
         XCTAssertNil(kind(["claude", "mcp", "serve"]))
         XCTAssertNil(kind(["claude", "update"]))
@@ -39,11 +38,10 @@ final class AgentProcessClassifierTests: XCTestCase {
         XCTAssertNil(kind(["/Applications/Claude.app/Contents/MacOS/claude"]))
     }
 
-    func testPiAndOMPDialects() {
-        XCTAssertEqual(kind(["pi"]), .pi)
-        XCTAssertEqual(kind(["omp"]), .omp)
-        XCTAssertEqual(kind(["bun", "/Users/me/.bun/bin/omp"]), .omp)
-        XCTAssertNil(kind(["bun", "run", "dev"]))
+    func testRemovedAgentsNotDiscovered() {
+        XCTAssertNil(kind(["pi"]))
+        XCTAssertNil(kind(["omp"]))
+        XCTAssertNil(kind(["bun", "/Users/me/.bun/bin/omp"]))
         XCTAssertNil(kind(["zsh"]))
     }
 
@@ -101,12 +99,12 @@ final class SessionDiscoveryTests: XCTestCase {
         let lister = FakeLister(list: [
             AgentProcess(pid: 1, arguments: ["claude"]),
             AgentProcess(pid: 2, arguments: ["zsh"]),
-            AgentProcess(pid: 3, arguments: ["pi"]),
+            AgentProcess(pid: 3, arguments: ["codex"]),
         ], cwds: [1: "/p/api", 2: "/p/shell", 3: "/p/blog"])
         let found = SessionDiscovery(lister: lister).scan().sorted { $0.pid < $1.pid }
         XCTAssertEqual(found, [
             DiscoveredProcess(pid: 1, agent: .claude, cwd: "/p/api", startedAt: nil),
-            DiscoveredProcess(pid: 3, agent: .pi, cwd: "/p/blog", startedAt: nil),
+            DiscoveredProcess(pid: 3, agent: .codex, cwd: "/p/blog", startedAt: nil),
         ])
     }
 

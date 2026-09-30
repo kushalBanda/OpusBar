@@ -3,7 +3,7 @@ import OpusBarCore
 import OpusBarWire
 import SwiftUI
 
-/// Agents pane: one tile per connectable file (each Claude profile, Codex, pi, OMP), colored by status, with Connect/Disconnect.
+/// Agents pane: one tile per connectable file (each Claude profile, Codex), colored by status, with Connect/Disconnect.
 /// Install and uninstall run only on the user's click.
 @MainActor
 struct AgentsSettingsView: View {
@@ -25,18 +25,9 @@ struct AgentsSettingsView: View {
                     blurb: "Adds OpusBar to hooks.json. Codex asks you to review new hooks: approve them in Codex with /hooks. Running sessions pick them up on restart.") {
                 EmptyView()
             }
-            section(.pi,
-                    blurb: "Adds one file, opusbar.ts, to pi's extensions folder. Nothing else in pi changes, and Disconnect removes it. Running sessions pick it up after /reload or a restart.") {
-                EmptyView()
-            }
-            section(.omp,
-                    blurb: "Same as pi, in OMP's extensions folder. Each OMP profile has its own.") {
-                EmptyView()
-            }
             if let error = model.lastError {
                 Text(error).font(Theme.font(12, .regular)).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true)
             }
-            PiFamilyFoldersTile(model: model).padding(.top, 12).id("piFamily")
             Text("If OpusBar isn't running, the hook exits instantly and your agent carries on as normal.")
                 .font(Theme.font(12, .regular)).opacity(0.5).padding(.top, 8)
         }
@@ -46,8 +37,6 @@ struct AgentsSettingsView: View {
         switch agent {
         case .claude: "No Claude profile folder found."
         case .codex: "Codex not found (~/.codex doesn't exist)."
-        case .pi: "pi not found (~/.pi/agent doesn't exist)."
-        case .omp: "OMP not found (~/.omp/agent doesn't exist)."
         }
     }
 
@@ -66,40 +55,6 @@ struct AgentsSettingsView: View {
             ForEach(rows) { TargetTile(row: $0, model: model, activity: store.hookActivity[agent]) }
             footer()
         }
-    }
-}
-
-/// Extra folders for pi and OMP sessions kept outside the default places (for example a custom `--session-dir`).
-@MainActor
-private struct PiFamilyFoldersTile: View {
-    let model: AgentHooksModel
-
-    var body: some View {
-        let _ = model.folderRevision
-        Tile {
-            TileHeading(title: "pi and OMP session folders",
-                        subtitle: "Running sessions show up automatically. If you keep sessions somewhere else, add that folder.")
-            ForEach([AgentKind.pi, .omp], id: \.self) { agent in
-                ForEach(model.piFamilyFolders(for: agent), id: \.self) { path in
-                    HStack {
-                        Text(agent.displayName).font(Theme.font(11, .semibold)).frame(width: 36, alignment: .leading)
-                        Text(Self.tildePath(path)).font(.system(size: 11).monospaced()).lineLimit(1).truncationMode(.middle)
-                        Spacer()
-                        Button("Remove") { model.removePiFamilyFolder(path, for: agent) }.buttonStyle(.link)
-                    }
-                }
-            }
-            HStack(spacing: 8) {
-                Button("Add pi Folder…") { model.addPiFamilyFolder(for: .pi) }
-                Button("Add OMP Folder…") { model.addPiFamilyFolder(for: .omp) }
-            }
-            .padding(.top, 6)
-        }
-    }
-
-    static func tildePath(_ path: String) -> String {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return path.hasPrefix(home) ? "~" + path.dropFirst(home.count) : path
     }
 }
 
@@ -138,9 +93,7 @@ private struct TargetTile: View {
         switch row.status {
         case .installed:
             Button("Disconnect") { model.uninstall(row.target) }
-            if !row.target.isExtension {
-                Button("Show Backups") { showBackups() }.buttonStyle(.link).foregroundStyle(Theme.onColor)
-            }
+            Button("Show Backups") { showBackups() }.buttonStyle(.link).foregroundStyle(Theme.onColor)
         case .notInstalled, .partial:
             Button("Connect") { model.install(row.target) }.buttonStyle(.borderedProminent).tint(Theme.onColor)
         case .unreadable:
@@ -175,7 +128,6 @@ private struct TargetTile: View {
         case .installed: return "Connected to \(name)"
         case .notInstalled: return "Not connected yet"
         case .partial: return "Partly connected"
-        case .unreadable where row.target.isExtension: return "Another \(row.target.fileURL.lastPathComponent) is there"
         case .unreadable: return "Couldn't read \(row.target.fileURL.lastPathComponent)"
         }
     }
@@ -184,21 +136,15 @@ private struct TargetTile: View {
         let origin: String = switch row.target.claudeOrigin {
         case .environment: " From CLAUDE_CONFIG_DIR."
         case .userAdded: " Folder you added."
-        default: row.target.profile.map { " Profile \u{201C}\($0)\u{201D}." } ?? ""
+        default: ""
         }
         switch row.status {
-        case .installed where row.target.isExtension:
-            return "New sessions report their state live. Running ones: /reload or restart.\(origin)"
         case .installed:
             return "Sessions report their state live.\(origin)"
         case .notInstalled:
             return "Sessions still show up, without live states.\(origin)"
-        case .partial(let missing) where missing.isEmpty:
-            return "Written by another OpusBar version. Connect again to update it."
         case .partial(let missing):
             return "\(missing.count) event(s) missing. Connect again to repair.\(origin)"
-        case .unreadable where row.target.isExtension:
-            return "A file with OpusBar's name that OpusBar didn't write, so it was left alone. Rename or remove it to connect."
         case .unreadable(let reason):
             return "It isn't valid JSON (\(reason)), so OpusBar left it untouched. Fix the file, then try again."
         }
@@ -241,7 +187,6 @@ private struct HookHealthLine: View {
             let restart = "Sessions started before connecting stay without live states until restarted."
             switch agent {
             case .codex: return "No events since OpusBar started. New Codex sessions report once you approve the hooks in Codex with /hooks."
-            case .pi, .omp: return "No events since OpusBar started. Sessions already running pick it up after /reload or a restart."
             case .claude: return "No events since OpusBar started. \(restart)"
             }
         }

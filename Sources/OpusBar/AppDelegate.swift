@@ -39,8 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = ProcessInfo.processInfo.environment
         let discovery = DiscoveryScheduler(store: store, discovery: SessionDiscovery(
             environment: environment,
-            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
-            piFamilyFolders: { PiFamilyFolders.folders(for: $0) }))
+            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) }))
         discovery.start()
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)

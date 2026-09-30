@@ -23,56 +23,6 @@ final class SessionFolderTests: XCTestCase {
         urls.map { $0.standardizedFileURL.path.replacingOccurrences(of: home.standardizedFileURL.path, with: "~") }
     }
 
-    func testPiRecordsReadBothLayouts() throws {
-        let grouped = try mkdir("grouped")
-        let bucket = try mkdir("grouped/--p-blog--")
-        try (#"{"type":"session","version":3,"id":"in-bucket","cwd":"/p/blog"}"# + "\n").write(
-            to: bucket.appending(path: "a.jsonl"), atomically: true, encoding: .utf8)
-        let direct = try mkdir("direct")
-        try (#"{"type":"session","version":3,"id":"flat","cwd":"/p/web"}"# + "\n").write(
-            to: direct.appending(path: "b.jsonl"), atomically: true, encoding: .utf8)
-        var budget = ScanBudget()
-        let records = SessionRecordReader.piFamilyRecords(roots: [grouped, direct], dialect: .pi,
-                                                          since: now.addingTimeInterval(-60), now: now, budget: &budget)
-        XCTAssertEqual(Set(records.map(\.id)), ["in-bucket", "flat"])
-    }
-
-    func testPiRootsFromArgumentsEnvironmentAndUserFolders() throws {
-        _ = try mkdir("custom-abs")
-        _ = try mkdir("work/rel-sessions")
-        _ = try mkdir("env-sessions")
-        _ = try mkdir("agent-dir/sessions")
-        _ = try mkdir("added")
-        _ = try mkdir(".pi/agent/sessions")
-        let roots = SessionRecordReader.piFamilyRoots(
-            dialect: .pi, home: home,
-            environment: ["PI_CODING_AGENT_SESSION_DIR": "~/env-sessions", "PI_CODING_AGENT_DIR": home.appending(path: "agent-dir").path],
-            processes: [(["pi", "--session-dir", home.appending(path: "custom-abs").path], nil),
-                        (["pi", "--session-dir=rel-sessions"], home.appending(path: "work").path)],
-            userAdded: [home.appending(path: "added").path, home.appending(path: "missing").path])
-        XCTAssertEqual(paths(roots), ["~/custom-abs", "~/work/rel-sessions", "~/env-sessions", "~/agent-dir/sessions",
-                                      "~/.pi/agent/sessions", "~/added"])
-    }
-
-    func testOmpProfileAndConfigDir() throws {
-        _ = try mkdir(".omp-work/profiles/team/agent/sessions")
-        _ = try mkdir(".omp-work/agent/sessions")
-        let roots = SessionRecordReader.piFamilyRoots(dialect: .omp, home: home, environment: ["PI_CONFIG_DIR": ".omp-work"],
-                                                      processes: [(["omp", "--profile", "team"], nil)])
-        XCTAssertEqual(paths(roots), ["~/.omp-work/profiles/team/agent/sessions", "~/.omp-work/agent/sessions"])
-    }
-
-    func testUnsafeConfigDirAndProfileAreIgnored() {
-        XCTAssertEqual(SessionRecordReader.ompConfigRoot(home: home, environment: ["PI_CONFIG_DIR": "/etc"]).lastPathComponent, ".omp")
-        XCTAssertEqual(SessionRecordReader.ompConfigRoot(home: home, environment: ["PI_CONFIG_DIR": "../x"]).lastPathComponent, ".omp")
-        XCTAssertTrue(SessionRecordReader.ompProfileRoots("../../etc", home: home, environment: [:]).isEmpty)
-    }
-
-    func testRelativeSessionDirNeedsACwd() {
-        XCTAssertNil(SessionRecordReader.expand("rel", home: home, relativeTo: nil))
-        XCTAssertEqual(SessionRecordReader.expand("~/x", home: home, relativeTo: nil)?.lastPathComponent, "x")
-    }
-
     func testClaudeDesktopRootsWalkFourLevelsAndSkipBuildFolders() throws {
         let base = "Library/Application Support/Claude/claude-code-sessions"
         _ = try mkdir("\(base)/acct/workspace/.claude/projects")

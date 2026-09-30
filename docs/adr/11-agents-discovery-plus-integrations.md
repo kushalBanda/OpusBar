@@ -1,6 +1,6 @@
 # 11. Four agents: process discovery for all, integrations for full states
 
-- Status: Accepted
+- Status: Accepted (pi/OMP superseded by 18)
 - Date: 2026-09-28
 
 ## Context

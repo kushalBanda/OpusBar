@@ -105,13 +105,3 @@ public final class Preferences {
         anyConnectable && !anyConnected && !dismissed
     }
 }
-
-/// Session folders the user added for pi and OMP (sessions kept outside the default places).
-/// Plain UserDefaults string arrays, read off the main thread by discovery.
-public enum PiFamilyFolders {
-    public static func key(for agent: AgentKind) -> String { "\(agent.rawValue)SessionFolders" }
-
-    public static func folders(for agent: AgentKind, defaults: UserDefaults = .standard) -> [String] {
-        defaults.stringArray(forKey: key(for: agent)) ?? []
-    }
-}

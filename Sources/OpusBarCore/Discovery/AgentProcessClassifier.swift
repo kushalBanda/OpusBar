@@ -24,9 +24,6 @@ public enum AgentProcessClassifier {
         if flags.contains("--help") || flags.contains("--version") || flags.contains("-v") && flags.count == 1 {
             return nil
         }
-        if let dialect = piDialect(of: process) {
-            return command.contains("--smoke-test") || command.contains("__omp_worker_") ? nil : dialect
-        }
         switch process.argv0Basename {
         case "codex":
             guard !flags.contains("app-server"), !flags.contains("mcp-server") else { return nil }
@@ -44,20 +41,6 @@ public enum AgentProcessClassifier {
             return command.contains("claude") ? .claude : nil
         default:
             return command.contains(claudeDesktopPath) ? .claude : nil
-        }
-    }
-
-    /// `pi` / `omp` by process title, or OMP run through bun (`bun … omp`).
-    static func piDialect(of process: AgentProcess) -> AgentKind? {
-        switch process.argv0Basename {
-        case "pi": return .pi
-        case "omp": return .omp
-        case "bun":
-            let hasOMP = process.arguments.dropFirst().contains {
-                URL(fileURLWithPath: $0).lastPathComponent.lowercased() == "omp"
-            }
-            return hasOMP ? .omp : nil
-        default: return nil
         }
     }
 

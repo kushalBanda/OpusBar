@@ -32,18 +32,14 @@ public struct SessionDiscovery: Sendable {
     let home: URL
     let environment: [String: String]
     let claudeProjectRoots: @Sendable () -> [URL]
-    /// Session folders the user added in Settings, per pi-family agent.
-    let piFamilyFolders: @Sendable (AgentKind) -> [String]
 
     public init(lister: ProcessListing = DarwinProcessLister(),
                 limit: Int = 64,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
-                claudeProjectRoots: (@Sendable () -> [URL])? = nil,
-                piFamilyFolders: @escaping @Sendable (AgentKind) -> [String] = { _ in [] }) {
+                claudeProjectRoots: (@Sendable () -> [URL])? = nil) {
         self.lister = lister
         self.limit = limit
         self.environment = environment
-        self.piFamilyFolders = piFamilyFolders
         home = ClaudeConfigPaths.homeDirectory(environment: environment)
         let home = home
         self.claudeProjectRoots = claudeProjectRoots ?? { SessionDiscovery.defaultClaudeProjectRoots(home: home, environment: environment) }
@@ -80,15 +76,6 @@ public struct SessionDiscovery: Sendable {
             let codexHome = environment["CODEX_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
                 ?? home.appending(path: ".codex", directoryHint: .isDirectory)
             records += SessionRecordReader.codexRollouts(codexHome: codexHome, now: now, budget: &budget)
-        }
-        for dialect in [AgentKind.pi, .omp] where agents.contains(dialect) {
-            let since = found.filter { $0.agent == dialect }.compactMap(\.startedAt).min() ?? now.addingTimeInterval(-86_400)
-            let processes = zip(agentProcesses, found)
-                .filter { tagged, _ in tagged.1 == dialect }
-                .map { tagged, process in (arguments: tagged.0.arguments, cwd: process.cwd) }
-            let roots = SessionRecordReader.piFamilyRoots(dialect: dialect, home: home, environment: environment,
-                                                          processes: processes, userAdded: piFamilyFolders(dialect))
-            records += SessionRecordReader.piFamilyRecords(roots: roots, dialect: dialect, since: since, now: now, budget: &budget)
         }
         let matches = SessionCorrelator.match(found, records: records, exact: exact)
         for index in found.indices { found[index].record = matches[found[index].pid] }

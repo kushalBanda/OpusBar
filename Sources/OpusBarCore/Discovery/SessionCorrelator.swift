@@ -4,7 +4,7 @@ import OpusBarWire
 /// Pairs live agent processes with their session records.
 public enum SessionCorrelator {
     /// Newest process first; each record used once.
-    /// - Claude and pi/OMP: same cwd, and the record changed at or after the process started.
+    /// - Claude: same cwd, and the record changed at or after the process started.
     ///   Claude only when a single Claude process runs in that cwd (otherwise the pairing is a guess).
     /// - Codex: first unused rollout with the same cwd.
     /// `exact` pairs a pid straight to its record (Claude's per-pid file); those win, and only the
