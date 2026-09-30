@@ -129,7 +129,9 @@ final class StatusItemController: NSObject {
 
         let image = NSImage(size: size, flipped: false) { _ in
             guard let context = NSGraphicsContext.current?.cgContext else { return false }
-            context.interpolationQuality = .none
+            // Crisp pixels at 1:1 and up; smooth below that (a 1x display), where nearest neighbour drops rows.
+            let scale = context.userSpaceToDeviceSpaceTransform.a
+            context.interpolationQuality = points * scale < CGFloat(CatSheet.framePixels) ? .high : .none
             if let cat {
                 context.setAlpha(alpha)
                 context.draw(cat, in: CGRect(x: 1, y: 1, width: points, height: points))
@@ -225,6 +227,13 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         setFrameSize(NSSize(width: size.width, height: height))
         super.invalidateIntrinsicContentSize()
         layoutSubtreeIfNeeded()
-        superview?.layoutSubtreeIfNeeded()
+        // An open menu doesn't resize its window for a new intrinsic height on its own: the row grows
+        // upward past the top (clipped) or shrinks leaving a gap above. Telling the menu the item
+        // changed makes it lay out the window again from the top.
+        if let item = enclosingMenuItem, let menu = item.menu {
+            menu.itemChanged(item)
+        } else {
+            superview?.layoutSubtreeIfNeeded()
+        }
     }
 }

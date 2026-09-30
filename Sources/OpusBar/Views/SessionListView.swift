@@ -62,6 +62,11 @@ struct SessionListView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
                 withAnimation(reduceMotion ? nil : Self.spring) { expandedId = args[i + 1] }
             }
+            // `--collapse-later` closes it again 3 s later, to check the menu shrinks back.
+            guard args.contains("--collapse-later") else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                withAnimation(reduceMotion ? nil : Self.spring) { expandedId = nil }
+            }
         }
         #endif
         .font(Theme.font(13))

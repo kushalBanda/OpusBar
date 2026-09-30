@@ -32,7 +32,7 @@ final class SettingsWindowController {
                                     entitlements: entitlements)
             let window = NSWindow(contentViewController: NSHostingController(rootView: root))
             window.title = "OpusBar Settings"
-            window.styleMask = [.titled, .closable, .fullSizeContentView]
+            window.styleMask = [.titled, .closable, .miniaturizable, .fullSizeContentView]
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
             window.isMovableByWindowBackground = true
@@ -44,6 +44,8 @@ final class SettingsWindowController {
         launchAtLogin.refresh()
         notifier.refreshAccess()
         NSApp.activate(ignoringOtherApps: true)
+        // Minimized to the Dock: Settings… from the menu brings it back.
+        if window?.isMiniaturized == true { window?.deminiaturize(nil) }
         window?.makeKeyAndOrderFront(nil)
     }
 }

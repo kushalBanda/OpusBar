@@ -10,6 +10,7 @@ struct CatView: View {
     @Environment(\.catAnimates) private var catAnimates
     @Environment(\.catCoat) private var coat
     @Environment(\.catPoses) private var poses
+    @Environment(\.displayScale) private var displayScale
 
     var body: some View {
         let animation = CatAnimation.for(state, poses: poses)
@@ -27,7 +28,9 @@ struct CatView: View {
         let f = animation.frames[index % animation.frames.count]
         if let image = CatSheet.sheet(for: coat).frame(col: f.col, row: f.row) {
             Image(decorative: image, scale: CGFloat(CatSheet.framePixels) / points)
-                .interpolation(.none)
+                // Nearest neighbour keeps pixels crisp at 1:1 and up. Below that (16 pt on a 1x display)
+                // it drops whole rows and columns, so the cat is scaled smoothly instead.
+                .interpolation(points * displayScale < CGFloat(CatSheet.framePixels) ? .high : .none)
                 .frame(width: points, height: points)
         } else {
             Color.clear.frame(width: points, height: points)
