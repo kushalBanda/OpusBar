@@ -20,9 +20,10 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [18](18-pi-and-omp-removed.md) | pi and OMP removed: Claude Code and Codex only | Accepted |
 | [19](19-usage-from-local-logs.md) | Usage and Spend from the agents' local logs | Accepted (amended by 20) |
 | [20](20-plan-limits-in-the-menu-bar.md) | Plan limits and usage in the menu bar | Accepted (Claude source superseded by 21) |
-| [21](21-claude-limits-per-account.md) | Claude plan limits per account, from Claude Code's cache | Accepted |
+| [21](21-claude-limits-per-account.md) | Claude plan limits per account, from Claude Code's cache | Accepted (amended by 24) |
 | [22](22-opusbar-is-free.md) | OpusBar is free: no Pro, no license | Accepted (amended by 23) |
 | [23](23-unsigned-distribution-and-updates.md) | Unsigned distribution and a signed update check | Accepted |
+| [24](24-live-claude-limits-from-the-status-line.md) | Live Claude limits: the hook steps in front of each connected profile's status line and saves `rate_limits` | Accepted |
 
 Template:
 

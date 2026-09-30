@@ -1,6 +1,6 @@
 # 21. Claude plan limits per account, from Claude Code's cache
 
-- Status: Accepted
+- Status: Accepted (amended by 24)
 - Date: 2026-09-30
 
 ## Context

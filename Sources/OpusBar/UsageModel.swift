@@ -16,7 +16,8 @@ final class UsageModel {
     /// Nil until the first scan finishes.
     var last24h: UsageTotals? { summaries[.day]?.total }
 
-    /// Plan limits per account: each Claude profile's cache from Claude Code, and each Codex home's rollouts.
+    /// Plan limits per account: each Claude profile's status line (live) or cache from Claude Code, and each
+    /// Codex home's rollouts.
     /// Claude accounts first. Empty when none is known.
     private(set) var limits: [UsageLimits] = []
 
@@ -67,20 +68,23 @@ private final class UsageWorker: @unchecked Sendable {
     private var refreshQueued = false
     private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void)?
     private let claudeLimits: ClaudeCodeLimitsReader
-    /// Windows renew and Claude Code rewrites its cache without a log changing: look again each minute.
+    /// Windows renew, and Claude Code rewrites its cache and the hook its live limits, without a log changing:
+    /// look again every 15 s.
     private var clock: DispatchSourceTimer?
 
     init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
          claudeAccountFiles: @escaping @Sendable () -> [ClaudeAccountFiles], prices: UsagePriceList) {
         store = UsageStore(claudeRoots: claudeRoots, codexRoots: codexRoots, prices: prices)
-        claudeLimits = ClaudeCodeLimitsReader(profiles: claudeAccountFiles)
+        let paths = OpusBarPaths.current()
+        claudeLimits = ClaudeCodeLimitsReader(profiles: claudeAccountFiles,
+                                              liveFile: { paths.liveLimitsFile(profileRoot: $0.path) })
     }
 
     func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void) {
         queue.async { [self] in
             self.publish = publish
             let clock = DispatchSource.makeTimerSource(queue: queue)
-            clock.schedule(deadline: .now() + 60, repeating: 60, leeway: .seconds(10))
+            clock.schedule(deadline: .now() + 15, repeating: 15, leeway: .seconds(3))
             clock.setEventHandler { [weak self] in self?.send() }
             clock.resume()
             self.clock = clock

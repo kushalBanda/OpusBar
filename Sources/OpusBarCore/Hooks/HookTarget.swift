@@ -52,6 +52,6 @@ public struct HookTarget: Equatable, Sendable, Identifiable {
         let name = root.path.split(separator: "/").joined(separator: "-")
         return HookInstaller(settingsURL: fileURL, events: events, hookBinary: paths.hookBinary, hookArguments: hookArguments,
                              backupsDir: paths.backupsDir.appending(path: "\(agent.rawValue)-\(name)", directoryHint: .isDirectory),
-                             async: async)
+                             async: async, statusLineRoot: agent == .claude ? root : nil)
     }
 }

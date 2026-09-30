@@ -4,7 +4,7 @@ import OpusBarCore
 import OpusBarWire
 
 /// Everything OpusBar can connect (Claude profiles, Codex) and its status, for Settings.
-/// Install and uninstall run only on a user click.
+/// Install and uninstall run only on a user click; launch only adds the status line to a connected profile.
 @MainActor @Observable
 final class AgentHooksModel {
     struct Row: Identifiable, Equatable {
@@ -34,6 +34,14 @@ final class AgentHooksModel {
             NSLog("OpusBar: hook refresh failed: \(error)")
         }
         refresh()
+        // Profiles connected before OpusBar read live limits from the status line.
+        for row in rows where row.target.agent == .claude && row.status == .installed {
+            do {
+                try row.target.installer(paths: paths).connectStatusLine()
+            } catch {
+                NSLog("OpusBar: status line connect failed for \(row.target.root.path): \(error)")
+            }
+        }
     }
 
     var userAddedFolders: [String] { defaults.stringArray(forKey: ClaudeProfiles.userDefaultsKey) ?? [] }

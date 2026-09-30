@@ -435,7 +435,7 @@ struct AboutPane: View {
             UpdatesTile(updater: updater, preferences: preferences)
             Tile {
                 TileHeading(title: "Privacy",
-                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events, and the plan limits Claude Code caches for each account, locally. The only thing it sends is the update check: a request to GitHub for the latest version, carrying OpusBar's version and nothing about you. Usage and Spend keeps only token counts, never your prompts or replies.")
+                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events, and the plan limits Claude Code caches or hands its status line, locally. The only thing it sends is the update check: a request to GitHub for the latest version, carrying OpusBar's version and nothing about you. Usage and Spend keeps only token counts, never your prompts or replies.")
             }
         }
     }

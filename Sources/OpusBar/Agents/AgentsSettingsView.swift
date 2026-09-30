@@ -18,7 +18,7 @@ struct AgentsSettingsView: View {
                 Button("Refresh") { model.refresh() }
             }
             section(.claude,
-                    blurb: "Adds a few hooks to each profile's settings.json so sessions report their state. Your own hooks stay, and the file is backed up first.") {
+                    blurb: "Adds a few hooks to each profile's settings.json so sessions report their state, and reads live plan limits as your status line runs. Your own hooks and status line stay, and the file is backed up first.") {
                 Button("Add Profile Folder…") { model.addClaudeFolder() }
             }
             section(.codex,

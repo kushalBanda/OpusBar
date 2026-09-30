@@ -55,6 +55,8 @@ public struct UsageLimits: Equatable, Sendable, Identifiable {
         case claudeCode
         /// Copied by the agent into its session log with each reply.
         case sessionLog
+        /// Handed by Claude Code to its status line with each reply, saved by the hook (`LiveLimits`).
+        case statusLine
     }
 
     public var agent: AgentKind
@@ -153,6 +155,27 @@ public enum ClaudeCodeLimits {
         ((json["oauthAccount"] as? [String: Any])?["emailAddress"] as? String).flatMap { $0.isEmpty ? nil : $0 }
     }
 
+    /// The account a profile is signed in with.
+    static func account(json: [String: Any]) -> String? {
+        ((json["oauthAccount"] as? [String: Any])?["accountUuid"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// A live reading on top of the cached one: its windows replace the cached ones they name; windows the
+    /// status line doesn't carry (Opus, Sonnet) stay as cached.
+    public static func limits(live: LiveLimits, account: String, label: String?, cached: UsageLimits?) -> UsageLimits? {
+        var result = cached?.windows ?? []
+        for window in windows {
+            guard let entry = live.windows[window.key] else { continue }
+            let merged = UsageLimitWindow(id: "claude.\(window.key)", kind: window.kind, minutes: window.minutes,
+                                          scope: window.scope, usedPercent: entry.usedPercent,
+                                          resetsAt: entry.resetsAt.map(Date.init(timeIntervalSince1970:)))
+            if let index = result.firstIndex(where: { $0.id == merged.id }) { result[index] = merged } else { result.append(merged) }
+        }
+        guard !result.isEmpty else { return nil }
+        return UsageLimits(agent: .claude, account: account, label: label ?? cached?.label, windows: result,
+                           observedAt: Date(timeIntervalSince1970: live.observedAt), source: .statusLine)
+    }
+
     static func limits(json: [String: Any]) -> UsageLimits? {
         guard let cached = json["cachedUsageUtilization"] as? [String: Any],
               let utilization = cached["utilization"] as? [String: Any],
@@ -194,11 +217,16 @@ public struct ClaudeAccountFiles: Sendable {
 /// (the newest, when two profiles share an account). Not thread-safe: the owner confines it to one queue.
 public final class ClaudeCodeLimitsReader {
     private let profiles: () -> [ClaudeAccountFiles]
-    private var cache: [String: (modified: Date?, limits: UsageLimits?, email: String?)] = [:]
+    /// Where the hook saves a profile's live limits (`OpusBarPaths.liveLimitsFile`).
+    private let liveFile: ((URL) -> URL)?
+    private var cache: [String: (modified: Date?, limits: UsageLimits?, email: String?, account: String?)] = [:]
     /// Each profile folder's signed-in email from the last `read`, by canonical folder path.
     public private(set) var emails: [String: String] = [:]
 
-    public init(profiles: @escaping () -> [ClaudeAccountFiles]) { self.profiles = profiles }
+    public init(profiles: @escaping () -> [ClaudeAccountFiles], liveFile: ((URL) -> URL)? = nil) {
+        self.profiles = profiles
+        self.liveFile = liveFile
+    }
 
     /// Files without their folders: `emails` stays keyed by each file's own folder.
     public convenience init(files: @escaping () -> [URL]) {
@@ -208,28 +236,44 @@ public final class ClaudeCodeLimitsReader {
     public func read() -> [UsageLimits] {
         var accounts: [String: UsageLimits] = [:]
         var emails: [String: String] = [:]
+        var live: [(reading: LiveLimits, account: String, email: String?)] = []
         for profile in profiles() {
+            var account: String?
+            var email: String?
             for url in profile.files {
-                let (limits, email) = entry(url)
+                let found = entry(url)
                 let root = UsageLogReader.canonical(profile.root.path)
-                if emails[root] == nil, let email { emails[root] = email }
-                guard let limits else { continue }
+                if emails[root] == nil, let email = found.email { emails[root] = email }
+                if account == nil, found.account != nil { (account, email) = (found.account, found.email) }
+                guard let limits = found.limits else { continue }
                 add(limits, to: &accounts)
             }
+            if let file = liveFile?(profile.root), let account, let reading = LiveLimits.read(file) {
+                live.append((reading, account, email))
+            }
+        }
+        // After every cache is in, so a live reading builds on its account's newest one.
+        for (reading, account, email) in live {
+            let cached = accounts[account]
+            guard reading.observedAt > cached?.observedAt.timeIntervalSince1970 ?? 0,
+                  let limits = ClaudeCodeLimits.limits(live: reading, account: account, label: email, cached: cached)
+            else { continue }
+            accounts[account] = limits
         }
         self.emails = emails
         return accounts.values.sorted { ($0.label ?? $0.account) < ($1.label ?? $1.account) }
     }
 
-    private func entry(_ url: URL) -> (UsageLimits?, String?) {
+    private func entry(_ url: URL) -> (limits: UsageLimits?, email: String?, account: String?) {
         let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-        if let known = cache[url.path], known.modified == modified { return (known.limits, known.email) }
+        if let known = cache[url.path], known.modified == modified { return (known.limits, known.email, known.account) }
         let json = modified == nil ? nil : (try? Data(contentsOf: url, options: .mappedIfSafe))
             .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
         let limits = json.flatMap(ClaudeCodeLimits.limits(json:))
         let email = json.flatMap(ClaudeCodeLimits.email(json:))
-        cache[url.path] = (modified, limits, email)
-        return (limits, email)
+        let account = json.flatMap(ClaudeCodeLimits.account(json:))
+        cache[url.path] = (modified, limits, email, account)
+        return (limits, email, account)
     }
 
     private func add(_ limits: UsageLimits, to accounts: inout [String: UsageLimits]) {

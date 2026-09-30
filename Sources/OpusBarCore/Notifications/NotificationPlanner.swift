@@ -19,6 +19,9 @@ public struct SessionNotice: Equatable, Sendable {
     public let sessionId: String
     public let state: SessionState
     public let title: String
+    /// The agent, and the session's own name when it has one. On a line of its own, so the banner's
+    /// text is as tall as the cat thumbnail macOS puts at its bottom right.
+    public var subtitle: String = ""
     public let body: String
     /// Notification Center stacks notices with the same thread: one stack per project folder.
     public var thread: String = ""
@@ -55,9 +58,9 @@ public enum NotificationPlanner {
         session.state == .needsAttention || session.state == .error || session.state == .done
     }
 
-    /// Reads like the card it came from: the project and what happened lead the title, the agent and
-    /// the detail follow in the body ("quant needs you" / "Claude Code · Allow Bash?"). The body always
-    /// starts with the agent, so a project named like the app still reads as a session.
+    /// Reads like the card it came from: the project and what happened lead the title, the agent follows
+    /// in the subtitle and the detail in the body ("quant needs you" / "Claude Code" / "Allow Bash?"). The
+    /// subtitle always names the agent, so a project named like the app still reads as a session.
     static func notice(for session: Session, rules: NotificationRules) -> SessionNotice? {
         let name = session.projectName
         let (title, detail): (String, String)
@@ -68,8 +71,8 @@ public enum NotificationPlanner {
         default: return nil
         }
         // A session the user named: name it too, so the notice says which one.
-        let body = [session.agent.displayName, session.distinctTitle, detail].compactMap { $0 }.joined(separator: " · ")
-        return SessionNotice(sessionId: session.id, state: session.state, title: title, body: body,
+        let subtitle = [session.agent.displayName, session.distinctTitle].compactMap { $0 }.joined(separator: " · ")
+        return SessionNotice(sessionId: session.id, state: session.state, title: title, subtitle: subtitle, body: detail,
                              thread: session.cwd.isEmpty ? session.id : session.cwd)
     }
 }

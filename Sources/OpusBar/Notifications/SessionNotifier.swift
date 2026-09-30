@@ -86,6 +86,7 @@ final class SessionNotifier: NSObject {
     private func post(_ notice: SessionNotice, center: UNUserNotificationCenter) {
         let content = UNMutableNotificationContent()
         content.title = notice.title
+        content.subtitle = notice.subtitle
         content.body = notice.body
         content.threadIdentifier = notice.thread
         // Done is informational; only needs-you and errors make a sound.

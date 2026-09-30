@@ -29,17 +29,20 @@ public struct HookInstaller: Sendable {
     public let backupsDir: URL
     /// Claude: async, never blocks. Codex: sync, because `codex exec` exits before pending async hooks run (Stop was lost).
     public let async: Bool
+    /// Claude only: the profile whose status line OpusBar steps in front of, for its live plan limits.
+    public let statusLineRoot: URL?
     let now: @Sendable () -> Date
 
     public init(settingsURL: URL, events: [HookEventName] = HookEventName.subscribed, hookBinary: URL,
                 hookArguments: [String] = [], backupsDir: URL, async: Bool = true,
-                now: @escaping @Sendable () -> Date = { Date() }) {
+                statusLineRoot: URL? = nil, now: @escaping @Sendable () -> Date = { Date() }) {
         self.settingsURL = settingsURL
         self.events = events
         self.hookBinary = hookBinary
         self.hookArguments = hookArguments
         self.backupsDir = backupsDir
         self.async = async
+        self.statusLineRoot = statusLineRoot
         self.now = now
     }
 
@@ -81,7 +84,7 @@ public struct HookInstaller: Sendable {
         }
         try installBinary(from: hookSource)
         try backUp()
-        try write(Self.merged(settings, command: hookCommand, events: events, async: async))
+        try write(withStatusLine(Self.merged(settings, command: hookCommand, events: events, async: async)))
         guard status() == .installed else { throw InstallError.verifyFailed }
         return .installed
     }
@@ -92,8 +95,68 @@ public struct HookInstaller: Sendable {
     public func uninstall() throws -> Status {
         guard case .object(let settings) = readSettings() else { return status() }
         try backUp()
-        try write(Self.unmerged(settings))
+        try write(Self.unwrappedStatusLine(Self.unmerged(settings)))
         return status()
+    }
+
+    /// A profile connected before OpusBar read the status line: step in front of it now. Only when the
+    /// hooks are in, and only once.
+    public func connectStatusLine() throws {
+        // Without the hook copy the status line would go blank.
+        guard statusLineRoot != nil, FileManager.default.isExecutableFile(atPath: hookBinary.path),
+              case .object(let settings) = readSettings(),
+              Self.status(of: settings, events: events) == .installed else { return }
+        let wrapped = withStatusLine(settings)
+        guard !NSDictionary(dictionary: wrapped).isEqual(to: settings) else { return }
+        try backUp()
+        try write(wrapped)
+    }
+
+    // MARK: Status line
+
+    func withStatusLine(_ settings: [String: Any]) -> [String: Any] {
+        guard let statusLineRoot else { return settings }
+        return Self.wrappedStatusLine(settings, hookBinary: hookBinary, root: statusLineRoot)
+    }
+
+    /// The profile's own status line command, if it has one and it isn't ours already.
+    static func ownStatusLine(_ settings: [String: Any]) -> String? {
+        guard let line = settings["statusLine"] as? [String: Any], let command = line["command"] as? String,
+              !command.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return isOurs(["command": command]) ? relayed(command) : command
+    }
+
+    /// `"<hook>" statusline <root> [<own command>]`, both base64. Keeps every other key of `statusLine`.
+    static func wrappedStatusLine(_ settings: [String: Any], hookBinary: URL, root: URL) -> [String: Any] {
+        var settings = settings
+        var line = settings["statusLine"] as? [String: Any] ?? [:]
+        let own = ownStatusLine(settings)
+        line["type"] = "command"
+        line["command"] = (["\"\(hookBinary.path)\"", StatusLineRelay.argument, StatusLineRelay.encode(root.path)]
+            + (own.map { [StatusLineRelay.encode($0)] } ?? [])).joined(separator: " ")
+        settings["statusLine"] = line
+        return settings
+    }
+
+    /// Gives the profile its own command back, or removes the status line OpusBar added.
+    static func unwrappedStatusLine(_ settings: [String: Any]) -> [String: Any] {
+        guard var line = settings["statusLine"] as? [String: Any], let command = line["command"] as? String,
+              isOurs(["command": command]) else { return settings }
+        var settings = settings
+        if let own = relayed(command) {
+            line["command"] = own
+            settings["statusLine"] = line
+        } else {
+            settings["statusLine"] = nil
+        }
+        return settings
+    }
+
+    /// The command an OpusBar status line runs after itself, nil when none.
+    static func relayed(_ command: String) -> String? {
+        guard let range = command.range(of: " \(StatusLineRelay.argument) ") else { return nil }
+        let parts = command[range.upperBound...].split(separator: " ")
+        return parts.count > 1 ? StatusLineRelay.decode(String(parts[1])) : nil
     }
 
     // MARK: Pure merge

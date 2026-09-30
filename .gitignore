@@ -68,6 +68,7 @@ docs/dev/
 docs/notes/
 docs/plans/
 .claude/
+.impeccable/
 .codegraph/
 skills-lock.json
 /build/

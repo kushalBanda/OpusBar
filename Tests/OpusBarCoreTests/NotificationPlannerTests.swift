@@ -21,7 +21,7 @@ final class NotificationPlannerTests: XCTestCase {
         let plan = NotificationPlanner.plan(old: state(session("a", .working)),
                                             new: state(session("a", .needsAttention, detail: "Allow Bash?")), rules: all)
         XCTAssertEqual(plan.post, [SessionNotice(sessionId: "a", state: .needsAttention, title: "api-server needs you",
-                                                 body: "Claude Code · Allow Bash?", thread: "/Users/me/api-server")])
+                                                 subtitle: "Claude Code", body: "Allow Bash?", thread: "/Users/me/api-server")])
         XCTAssertEqual(plan.clear, [])
     }
 
@@ -36,8 +36,8 @@ final class NotificationPlannerTests: XCTestCase {
         let new = state(session("a", .done, agent: .codex), session("b", .error, detail: "API error"))
         let plan = NotificationPlanner.plan(old: old, new: new, rules: all)
         XCTAssertEqual(plan.post.map(\.title), ["api-server is done", "api-server hit an error"])
-        XCTAssertEqual(plan.post[0].body, "Codex · Finished its turn")
-        XCTAssertEqual(plan.post[1].body, "Claude Code · API error")
+        XCTAssertEqual(plan.post.map(\.subtitle), ["Codex", "Claude Code"])
+        XCTAssertEqual(plan.post.map(\.body), ["Finished its turn", "API error"])
 
         let defaults = NotificationRules(needsYou: true, error: true, done: false)
         XCTAssertEqual(NotificationPlanner.plan(old: old, new: new, rules: defaults).post.map(\.state), [.error])
@@ -47,7 +47,8 @@ final class NotificationPlannerTests: XCTestCase {
 
     func testNewSessionAlreadyNeedingYouPosts() {
         let plan = NotificationPlanner.plan(old: state(), new: state(session("a", .needsAttention)), rules: all)
-        XCTAssertEqual(plan.post.first?.body, "Claude Code · Waiting for you")
+        XCTAssertEqual(plan.post.first?.subtitle, "Claude Code")
+        XCTAssertEqual(plan.post.first?.body, "Waiting for you")
     }
 
     func testTwoSessionsInOneFolderNameTheSession() {
@@ -59,8 +60,8 @@ final class NotificationPlannerTests: XCTestCase {
         madeUp.title = "api-server-8d"
         madeUp.titleIsDerived = true
         let plan = NotificationPlanner.plan(old: state(), new: state(named, sameAsFolder, madeUp), rules: all)
-        XCTAssertEqual(plan.post.map(\.body), ["Claude Code · fix-login · Allow Bash?", "Claude Code · Waiting for you",
-                                               "Claude Code · Waiting for you"])
+        XCTAssertEqual(plan.post.map(\.subtitle), ["Claude Code · fix-login", "Claude Code", "Claude Code"])
+        XCTAssertEqual(plan.post.map(\.body), ["Allow Bash?", "Waiting for you", "Waiting for you"])
         XCTAssertEqual(Set(plan.post.map(\.thread)), ["/Users/me/api-server"])
     }
 

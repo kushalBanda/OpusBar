@@ -11,6 +11,8 @@ public struct OpusBarPaths: Sendable, Equatable {
     public let socket: URL
     public let hookBinary: URL
     public let backupsDir: URL
+    /// Live plan limits from each Claude profile's status line, one file per profile.
+    public let liveLimitsDir: URL
 
     public init(home: URL) {
         self.home = home
@@ -21,6 +23,13 @@ public struct OpusBarPaths: Sendable, Equatable {
             : home.appending(path: ".opusbar/events.sock")
         hookBinary = supportDir.appending(path: "bin/opusbar-hook")
         backupsDir = supportDir.appending(path: "backups", directoryHint: .isDirectory)
+        liveLimitsDir = supportDir.appending(path: "limits", directoryHint: .isDirectory)
+    }
+
+    /// `limits/claude-Users-me-.claude.json` for `/Users/me/.claude`.
+    public func liveLimitsFile(profileRoot: String) -> URL {
+        let name = profileRoot.split(separator: "/").joined(separator: "-")
+        return liveLimitsDir.appending(path: "claude-\(name).json")
     }
 
     /// Paths for the current user, preferring `$HOME`.
