@@ -42,7 +42,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             environment: environment,
             claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
             codexHomes: { AgentHooksModel.codexHomes(environment: environment).map(\.root) }))
-        discovery.start()
+        #if DEBUG
+        // `--no-discovery` leaves out processes found on the Mac: only hook events make rows, for screenshots
+        // made from staged sessions.
+        let discovers = !ProcessInfo.processInfo.arguments.contains("--no-discovery")
+        #else
+        let discovers = true
+        #endif
+        if discovers { discovery.start() }
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
@@ -62,7 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.mainMenu = Self.makeMainMenu()
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
                                           usage: usage, updater: updater, settings: settings) {
-            discovery.scanNow()
+            if discovers { discovery.scanNow() }
             usage.refresh()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
         }

@@ -250,6 +250,13 @@ extension StatusItemController: NSMenuDelegate {
         if let screen = statusItem.button?.window?.screen ?? NSScreen.main, layout.screenHeight != screen.visibleFrame.height {
             layout.screenHeight = screen.visibleFrame.height
         }
+        #if DEBUG
+        // `--screen-height <pt>` lays the menu out as if on a screen that tall, for screenshots that don't scroll.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "--screen-height"), i + 1 < args.count, let height = Double(args[i + 1]) {
+            layout.screenHeight = height
+        }
+        #endif
         // Measure before anything changes, and don't ask the menu to relayout while it is being built:
         // every crash report (SIGSEGV in AttributeGraph) was a synchronous measure here right after
         // `onOpen` had changed observed state. What `onOpen` changes arrives through the queued refit.
