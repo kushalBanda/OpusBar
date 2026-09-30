@@ -14,9 +14,7 @@ Free and open source · macOS 14 or later · Apple silicon and Intel
 
 <br>
 
-<a href="docs/assets/opusbar-launch.mp4"><img src="docs/assets/opusbar-launch.jpg" width="820" alt="OpusBar launch video: the cat in the menu bar, the six session states and the GitHub link. Click to play, sound on."></a>
-
-<sub>▶ Watch the 20-second launch video (sound on)</sub>
+https://github.com/user-attachments/assets/e6d5e839-8786-4419-8ba4-bc8e238dcb06
 
 <br><br>
 
