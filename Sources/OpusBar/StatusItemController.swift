@@ -56,6 +56,11 @@ final class StatusItemController: NSObject {
             self, selector: #selector(displayOptionsChanged),
             name: NSWorkspace.accessibilityDisplayOptionsDidChangeNotification, object: nil
         )
+        // The bar is taller on a notch display: redraw at the right size when displays change.
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(displayOptionsChanged),
+            name: NSApplication.didChangeScreenParametersNotification, object: nil
+        )
         observeStore()
     }
 
@@ -118,7 +123,7 @@ final class StatusItemController: NSObject {
         let cat = CatSheet.sheet(for: preferences.coat).frame(col: frame.col, row: frame.row)
         let badge = look.showsBadge ? Self.badge(for: aggregate) : nil
         let alpha = look.alpha(hasSessions: aggregate.state != nil)
-        let points = CGFloat(look.catPoints(barThickness: NSStatusBar.system.thickness))
+        let points = CGFloat(look.catPoints(barThickness: barHeight))
         let key = "\(preferences.coat.rawValue),\(frame.col),\(frame.row),\(badge?.text ?? "-"),\(alpha),\(points)"
         if let cached = imageCache[key] {
             if button.image !== cached { button.image = cached }
@@ -154,6 +159,13 @@ final class StatusItemController: NSObject {
         imageCache[key] = image
         button.image = image
         button.setAccessibilityLabel(accessibilityLabel)
+    }
+
+    /// The real height of the menu bar the icon sits in. `NSStatusBar.system.thickness` always says 22,
+    /// also on notch displays where the bar is much taller, which capped Large at Medium's size.
+    private var barHeight: Double {
+        let window = statusItem.button?.window?.frame.height ?? 0
+        return window > 0 ? window : NSStatusBar.system.thickness
     }
 
     private var accessibilityLabel: String {

@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preferences: Preferences?
     private var store: SessionStore?
     private var notifier: SessionNotifier?
+    private var settings: SettingsWindowController?
 
     @MainActor
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -49,6 +50,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.notifier = notifier
         let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store,
                                                 entitlements: entitlements)
+        self.settings = settings
+        NSApp.mainMenu = Self.makeMainMenu()
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
                                           entitlements: entitlements, settings: settings) {
             discovery.scanNow()
@@ -66,6 +69,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in self?.statusItem?.showMenu() }
         }
         #endif
+    }
+
+    /// Shown only while Settings is open (the app is regular then): the standard app, Edit and Window
+    /// menus, so ⌘Q, ⌘W, ⌘M and copy/paste in the license key field work.
+    @MainActor
+    private static func makeMainMenu() -> NSMenu {
+        let main = NSMenu()
+        func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenu {
+            let menu = NSMenu(title: title)
+            items.forEach(menu.addItem)
+            let holder = NSMenuItem()
+            holder.submenu = menu
+            main.addItem(holder)
+            return menu
+        }
+        func item(_ title: String, _ action: Selector, _ key: String, _ modifiers: NSEvent.ModifierFlags = .command) -> NSMenuItem {
+            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
+            item.keyEquivalentModifierMask = modifiers
+            return item
+        }
+        _ = submenu("OpusBar", [
+            item("Hide OpusBar", #selector(NSApplication.hide(_:)), "h"),
+            item("Hide Others", #selector(NSApplication.hideOtherApplications(_:)), "h", [.command, .option]),
+            .separator(),
+            item("Quit OpusBar", #selector(NSApplication.terminate(_:)), "q"),
+        ])
+        _ = submenu("Edit", [
+            item("Undo", Selector(("undo:")), "z"),
+            item("Redo", Selector(("redo:")), "z", [.command, .shift]),
+            .separator(),
+            item("Cut", #selector(NSText.cut(_:)), "x"),
+            item("Copy", #selector(NSText.copy(_:)), "c"),
+            item("Paste", #selector(NSText.paste(_:)), "v"),
+            item("Select All", #selector(NSText.selectAll(_:)), "a"),
+        ])
+        NSApp.windowsMenu = submenu("Window", [
+            item("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m"),
+            item("Close", #selector(NSWindow.performClose(_:)), "w"),
+        ])
+        return main
+    }
+
+    /// Clicking the Dock icon (there while Settings is open) brings a minimized Settings window back.
+    @MainActor
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        settings?.show()
+        return true
     }
 
     /// Live Polar and the login Keychain. Debug builds: `--pro` shows Pro without a key, and

@@ -116,7 +116,7 @@ struct SessionRowView: View {
     }
 }
 
-/// The expanded part of a card: facts first, then actions that work for everyone.
+/// The expanded part of a card: the facts about the session.
 private struct SessionDetails: View {
     let session: Session
     let now: Date
@@ -140,17 +140,6 @@ private struct SessionDetails: View {
                     .font(Theme.font(11, .regular)).foregroundStyle(secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 8) {
-                Button("Copy Path") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(session.cwd, forType: .string)
-                }
-                Button("Show in Finder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])
-                }
-                .disabled(session.cwd.isEmpty)
-            }
-            .controlSize(.small)
         }
         .padding(.leading, 52) // lines up with the text column, past the cat tile
     }
