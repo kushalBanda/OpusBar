@@ -1,7 +1,8 @@
 import OpusBarCore
 import SwiftUI
 
-/// The dropdown: header summary, one card per session (loudest first), then Settings and Quit.
+/// The dropdown: a Sessions | Usage switch, then one card per session (loudest first) or the usage
+/// summary, then Settings and Quit.
 @MainActor
 struct SessionListView: View {
     let store: SessionStore
@@ -21,6 +22,15 @@ struct SessionListView: View {
         return nil
     }()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Kept while the app runs: the menu reopens on the tab it closed on.
+    @State private var tab: DropdownTab = {
+        #if DEBUG
+        // `--tab usage` opens the Usage tab, for screenshots.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "--tab"), i + 1 < args.count, let tab = DropdownTab(rawValue: args[i + 1]) { return tab }
+        #endif
+        return .sessions
+    }()
 
     /// Idle sessions fold into one row once the list is long; the user can open it.
     @State private var showsIdle = false
@@ -33,25 +43,36 @@ struct SessionListView: View {
         let sections = SessionSections(store.sessions)
         VStack(alignment: .leading, spacing: 10) {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Sessions").font(Theme.font(17, .semibold))
-                Text(sections.summary).font(Theme.font(11, .regular)).foregroundStyle(.secondary)
+                SegmentedPicker(options: DropdownTab.allCases, selection: $tab, size: 13) { $0.title }
+                    .padding(.bottom, 4)
+                Text(tab == .sessions ? sections.summary : usageSummary).font(Theme.font(11, .regular)).foregroundStyle(.secondary)
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 4)
-            if let totals = usage.last24h {
-                UsageStrip(totals: totals)
+            // Both tabs stay laid out, one over the other, so the menu keeps the taller one's height and never
+            // resizes or jumps on a switch; the hidden one takes no clicks and is hidden from VoiceOver.
+            ZStack(alignment: .top) {
+                page(.sessions) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
+                                                     dismissed: preferences.connectCardDismissed) {
+                            ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })
+                        }
+                        if sections.count == 0 {
+                            EmptySessionsView()
+                        } else {
+                            list(sections)
+                        }
+                    }
+                }
+                page(.usage) {
+                    UsageDropdownView(usage: usage, entitlements: entitlements, maxHeight: maxListHeight, openSettings: openSettings)
+                }
             }
-            if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
-                                         dismissed: preferences.connectCardDismissed) {
-                ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })
-            }
-            if sections.count == 0 {
-                EmptySessionsView()
-            } else {
-                list(sections)
-            }
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: tab)
             Divider()
             VStack(spacing: 0) {
+                MenuItemRow(title: "Usage and Spend…", systemImage: "chart.bar") { openSettings(.usage) }
                 MenuItemRow(title: "Settings…", systemImage: "gearshape", action: { openSettings(nil) })
                 MenuItemRow(title: "Quit OpusBar", systemImage: "power") { NSApp.terminate(nil) }
             }
@@ -77,6 +98,23 @@ struct SessionListView: View {
         .environment(\.catAnimates, preferences.animateCat)
         .environment(\.catCoat, preferences.coat)
         .environment(\.catPoses, preferences.poses)
+    }
+
+    /// One tab's content: shown when chosen, else invisible but still laid out.
+    private func page(_ page: DropdownTab, @ViewBuilder content: () -> some View) -> some View {
+        let shown = tab == page
+        return content()
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .opacity(shown ? 1 : 0)
+            .allowsHitTesting(shown)
+            .accessibilityHidden(!shown)
+    }
+
+    /// Under the Usage tab's title: the free 24 hours at a glance.
+    private var usageSummary: String {
+        guard let totals = usage.last24h else { return "Reading your logs…" }
+        guard totals.replies > 0 else { return "No usage in the last 24 h" }
+        return "Last 24 h · \(UsageFormat.cost(totals.cost)) API value · \(UsageFormat.tokens(totals.tokens.total)) tokens"
     }
 
     /// Tallest the list may grow before it scrolls: most of the screen, leaving room for the menu bar,
@@ -181,28 +219,6 @@ struct SessionListView: View {
 final class PopoverLayout {
     /// Visible height of the screen holding the menu bar icon.
     var screenHeight: CGFloat = NSScreen.main?.visibleFrame.height ?? 800
-}
-
-/// Last 24 hours of spend under the header: what the replies would cost at API list prices.
-private struct UsageStrip: View {
-    let totals: UsageTotals
-
-    var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "chart.bar.fill").font(.system(size: 10)).foregroundStyle(.secondary)
-            Text(text).font(Theme.font(11, .medium)).monospacedDigit().contentTransition(.numericText())
-        }
-        .padding(.horizontal, 8).padding(.vertical, 5)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary.opacity(0.5)))
-        .help("What the last 24 hours of Claude Code and Codex replies would cost at API list prices. Plans pay a flat price instead.")
-        .accessibilityElement(children: .combine)
-    }
-
-    private var text: String {
-        guard totals.replies > 0 else { return "Last 24 h · no usage" }
-        return "Last 24 h · \(UsageFormat.cost(totals.cost)) API value · \(UsageFormat.tokens(totals.tokens.total)) tokens"
-    }
 }
 
 /// Section title with its count. With `toggle`, the header folds its section (used for Idle).

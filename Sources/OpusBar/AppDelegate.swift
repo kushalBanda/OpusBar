@@ -11,6 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var preferences: Preferences?
     private var store: SessionStore?
     private var notifier: SessionNotifier?
+    private var limitResets: LimitResetNotifier?
     private var settings: SettingsWindowController?
 
     @MainActor
@@ -44,12 +45,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
-                               codexRoots: { UsageStore.codexRoots(environment: environment) })
+                               codexRoots: { UsageStore.codexRoots(environment: environment) },
+                               claudeAccountFiles: { AgentHooksModel.claudeAccountFiles(environment: environment) })
         usage.start()
         let notifier = SessionNotifier(store: store, preferences: preferences,
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
         self.notifier = notifier
+        limitResets = LimitResetNotifier(usage: usage, preferences: preferences)
         let settings = SettingsWindowController(hooks: hooks, preferences: preferences, notifier: notifier, store: store,
                                                 entitlements: entitlements, usage: usage)
         self.settings = settings
@@ -65,6 +68,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--settings"), index + 1 < arguments.count {
             settings.show(SettingsPane(rawValue: arguments[index + 1]))
+        }
+        if let index = arguments.firstIndex(of: "--dump-settings"), index + 2 < arguments.count,
+           let pane = SettingsPane(rawValue: arguments[index + 1]) {
+            let path = arguments[index + 2]
+            // After the first usage read, so account rows are in.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self] in self?.settings?.dump(pane, to: path) }
         }
         if arguments.contains("--menu") {
             // `--menu-delay <s>` waits first, so test sessions can arrive before the screenshot.

@@ -62,6 +62,32 @@ final class StatusItemController: NSObject {
             name: NSApplication.didChangeScreenParametersNotification, object: nil
         )
         observeStore()
+        #if DEBUG
+        // `--dump-menu <png>` renders the dropdown offscreen after 5 s, for checks without opening the menu.
+        let args = ProcessInfo.processInfo.arguments
+        if let i = args.firstIndex(of: "--dump-menu"), i + 1 < args.count {
+            let path = args[i + 1]
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
+                let view = NSHostingView(rootView: SessionListView(store: store, preferences: preferences, hooks: hooks,
+                                                                   entitlements: entitlements, usage: usage, layout: PopoverLayout()))
+                let size = view.fittingSize
+                let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: size.width, height: size.height),
+                                      styleMask: .borderless, backing: .buffered, defer: false)
+                window.appearance = NSAppearance(named: .darkAqua)
+                window.contentView = view
+                window.orderFrontRegardless()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                    view.layoutSubtreeIfNeeded()
+                    if let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                        view.cacheDisplay(in: view.bounds, to: rep)
+                        try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+                    }
+                    window.orderOut(nil)
+                    NSLog("OpusBar dumped menu to %@", path)
+                }
+            }
+        }
+        #endif
     }
 
     /// Any session change counts as activity; re-arms itself after each change.

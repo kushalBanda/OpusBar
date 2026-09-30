@@ -25,6 +25,27 @@ final class UsageSummaryTests: XCTestCase {
                        UsageTimestamp.parse("2026-07-02T18:30:00Z"), "90 local days including today")
     }
 
+    func testTwentyFourHoursTrendIsHourlyAndStackedByAgent() {
+        let records = [
+            // Kolkata hours begin at :30 UTC; the current one began 11:30Z.
+            record("2026-09-30T11:30:00Z", cost: 1),                 // the current hour, on its first second
+            record("2026-09-30T11:29:59Z", agent: .codex, cost: 2),  // the hour before
+            record("2026-09-30T10:30:00Z", cost: 4),                 // the hour before, on its boundary
+            record("2026-09-29T12:30:00Z", cost: 8),                 // the first bar
+        ]
+        let summary = UsageSummary.make(records: records, range: .day, now: now, calendar: calendar)
+        XCTAssertEqual(summary.hours.count, 24)
+        XCTAssertEqual(summary.trend, summary.hours)
+        XCTAssertTrue(summary.days.isEmpty)
+        XCTAssertEqual(summary.hours.last?.start, UsageTimestamp.parse("2026-09-30T11:30:00Z"))
+        XCTAssertEqual(summary.hours.last?.totals.cost, 1)
+        XCTAssertEqual(summary.hours[22].totals.cost, 6)
+        XCTAssertEqual(summary.hours[22].byAgent[.codex]?.cost, 2)
+        XCTAssertEqual(summary.hours[22].byAgent[.claude]?.cost, 4)
+        XCTAssertEqual(summary.hours[0].totals.cost, 8)
+        XCTAssertEqual(UsageSummary.make(records: records, range: .week, now: now, calendar: calendar).trend.count, 7)
+    }
+
     func testOnlyTwentyFourHoursIsFree() {
         XCTAssertEqual(UsageRange.allCases.filter { $0.isAvailable(isPro: false) }, [.day])
         XCTAssertEqual(UsageRange.allCases.filter { $0.isAvailable(isPro: true) }, UsageRange.allCases)

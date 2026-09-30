@@ -135,6 +135,7 @@ private struct TargetTile: View {
     private var subtitle: String {
         let origin: String = switch row.target.claudeOrigin {
         case .environment: " From CLAUDE_CONFIG_DIR."
+        case .detected: " Found in your home folder."
         case .userAdded: " Folder you added."
         default: ""
         }

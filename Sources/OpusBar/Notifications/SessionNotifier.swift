@@ -38,7 +38,10 @@ final class SessionNotifier: NSObject {
         last = store.state
         center?.delegate = self
         // Sessions from a previous run are gone, so are the states their notifications announced.
-        center?.removeAllDeliveredNotifications()
+        center?.getDeliveredNotifications { delivered in
+            let sessions = delivered.map(\.request.identifier).filter { $0.hasPrefix("session.") }
+            UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: sessions)
+        }
         refreshAccess()
         observe()
     }

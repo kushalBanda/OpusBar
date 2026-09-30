@@ -34,14 +34,22 @@ public final class UsageStore {
 
     public func totals(since: Date) -> UsageTotals { ledger.totals(since: since) }
 
+    /// Codex's newest limit reading across all rollouts read so far.
+    public var codexLimits: UsageLimits? {
+        cursors.values.compactMap { $0.agent == .codex ? $0.codex.limits : nil }.max { $0.observedAt < $1.observedAt }
+    }
+
     /// Finds log files changed within the history window and reads what each gained. Covers files the
-    /// watcher missed (new roots, events dropped) and drops records past the window.
-    public func refresh(now: Date = Date()) {
+    /// watcher missed (new roots, events dropped) and drops records past the window. `recent` limits the
+    /// pass to files changed that recently: every reply of the last 24 hours is in a file changed within
+    /// them, so a short first pass makes the 24 h figures ready long before the 90-day read ends.
+    public func refresh(now: Date = Date(), recent: TimeInterval? = nil) {
         let horizon = now.addingTimeInterval(-history)
+        let changedSince = recent.map { max(horizon, now.addingTimeInterval(-$0)) } ?? horizon
         resolveRoots()
         var files: [(path: String, agent: AgentKind)] = []
         for (root, agent) in roots {
-            for path in UsageLogReader.logs(under: [URL(fileURLWithPath: root)], changedSince: horizon) {
+            for path in UsageLogReader.logs(under: [URL(fileURLWithPath: root)], changedSince: changedSince) {
                 files.append((UsageLogReader.canonical(path), agent))
             }
         }

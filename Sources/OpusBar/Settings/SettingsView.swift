@@ -135,7 +135,7 @@ struct SettingsView: View {
         case .cat: CatPane(preferences: preferences)
         case .agents: AgentsSettingsView(model: hooks, store: store)
         case .usage: UsagePane(usage: usage, entitlements: entitlements) { navigation.pane = .license }
-        case .notifications: NotificationsPane(preferences: preferences, notifier: notifier)
+        case .notifications: NotificationsPane(preferences: preferences, notifier: notifier, usage: usage)
         case .license: LicensePane(entitlements: entitlements)
         case .about: AboutPane()
         }
@@ -306,11 +306,12 @@ private struct CatLegend: View {
 struct NotificationsPane: View {
     @Bindable var preferences: Preferences
     let notifier: SessionNotifier
+    let usage: UsageModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             PaneTitle(title: "Notifications",
-                      lead: "Get a macOS notification when a session changes. macOS asks for permission the first time.")
+                      lead: "Get a macOS notification when a session changes or a plan limit resets. macOS asks for permission the first time.")
             Tile {
                 row(.needsAttention, "A session needs you", "Permission prompts and questions.", $preferences.notifyNeedsYou)
                 Divider().opacity(0.5)
@@ -318,9 +319,54 @@ struct NotificationsPane: View {
                 Divider().opacity(0.5)
                 row(.done, "A session finishes", "Off by default. Can get chatty with many sessions.", $preferences.notifyDone)
             }
+            limitResets.padding(.top, 8)
             accessNote.padding(.top, 12)
         }
         .onAppear { notifier.refreshAccess() }
+    }
+
+    /// Plan limit resets: one switch for all, then one per account, each on until turned off.
+    private var limitResets: some View {
+        Tile {
+            HStack(spacing: 14) {
+                Image(systemName: "arrow.clockwise.circle.fill").font(.system(size: 22)).foregroundStyle(Theme.onColor)
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.green))
+                TileHeading(title: "A plan limit resets",
+                            subtitle: "When a Claude or Codex window you've used renews, like the 5-hour or weekly limit.")
+                Spacer()
+                Toggle("A plan limit resets", isOn: $preferences.notifyLimitReset)
+                    .labelsHidden().toggleStyle(.switch).tint(Theme.green)
+            }
+            .padding(.vertical, 8)
+            if usage.limits.isEmpty {
+                Text("Accounts show here once their limits are known. Claude Code saves them when it checks an account.")
+                    .font(Theme.font(12, .regular)).opacity(0.6).fixedSize(horizontal: false, vertical: true)
+                    .padding(.bottom, 6)
+            }
+            ForEach(usage.limits) { limits in
+                Divider().opacity(0.5)
+                HStack(spacing: 10) {
+                    Circle().fill(Theme.agent(limits.agent)).frame(width: 8, height: 8).padding(.leading, 16)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(limits.agent.displayName).font(Theme.font(13, .medium))
+                        if let label = limits.label {
+                            Text(label).font(Theme.font(11, .regular)).opacity(0.6).lineLimit(1).truncationMode(.middle)
+                        }
+                    }
+                    Spacer()
+                    Toggle(limits.label ?? limits.agent.displayName, isOn: Binding(
+                        get: { !preferences.limitResetMuted.contains(limits.id) },
+                        set: { on in
+                            if on { preferences.limitResetMuted.remove(limits.id) } else { preferences.limitResetMuted.insert(limits.id) }
+                        }))
+                        .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(Theme.green)
+                }
+                .padding(.vertical, 6)
+                .disabled(!preferences.notifyLimitReset)
+                .opacity(preferences.notifyLimitReset ? 1 : 0.5)
+            }
+        }
     }
 
     @ViewBuilder
@@ -380,7 +426,7 @@ struct AboutPane: View {
             }
             Tile {
                 TileHeading(title: "Privacy",
-                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events locally and sends nothing anywhere. Usage and Spend keeps only token counts, never your prompts or replies.")
+                            subtitle: "Runs entirely on your Mac. No account, no telemetry. OpusBar reads your agents' session files, logs and hook events, and the plan limits Claude Code caches for each account, locally and sends nothing anywhere. Usage and Spend keeps only token counts, never your prompts or replies.")
             }
         }
     }

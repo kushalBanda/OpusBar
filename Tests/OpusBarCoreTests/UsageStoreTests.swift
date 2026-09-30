@@ -47,6 +47,20 @@ final class UsageStoreTests: XCTestCase {
         XCTAssertTrue(store.records.contains { $0.tokens.output == 50 })
     }
 
+    func testRecentPassFirstThenFullReadAddsOnlyTheRest() throws {
+        try write(lines(claudeAssistantLine(id: "new")), to: "-p/new.jsonl")
+        try write(lines(claudeAssistantLine(id: "old")), to: "-p/old.jsonl", modified: now.addingTimeInterval(-10 * 86_400))
+        let store = store()
+        store.refresh(now: now, recent: 2 * 86_400)
+        XCTAssertEqual(store.totals(since: .distantPast).replies, 1, "only files changed in two days")
+        let recentBytes = store.bytesRead
+        store.refresh(now: now)
+        XCTAssertEqual(store.totals(since: .distantPast).replies, 2)
+        XCTAssertGreaterThan(store.bytesRead, recentBytes)
+        store.refresh(now: now)
+        XCTAssertEqual(store.totals(since: .distantPast).replies, 2, "nothing read twice")
+    }
+
     func testAppendedLinesCountedOnceAndPartialLineWaits() throws {
         let url = try write(lines(claudeAssistantLine(id: "a")), to: "-p/s.jsonl")
         let store = store()

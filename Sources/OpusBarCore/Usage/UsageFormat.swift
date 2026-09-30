@@ -46,4 +46,25 @@ public extension UsageFormat {
         guard let first = parts.first else { return "GPT" }
         return (["GPT-" + first] + parts.dropFirst().map(\.capitalized)).joined(separator: " ")
     }
+
+    /// "65%", rounded, clamped to 0...100.
+    static func percent(_ fraction: Double) -> String {
+        "\(Int((min(1, max(0, fraction)) * 100).rounded()))%"
+    }
+
+    /// When a plan window renews: "15:00" today, "Fri 15:00" this week, "12 Oct" later.
+    static func resetTime(_ date: Date, now: Date, calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) { return date.formatted(date: .omitted, time: .shortened) }
+        if date.timeIntervalSince(now) < 6 * 86_400 { return date.formatted(.dateTime.weekday(.abbreviated).hour().minute()) }
+        return date.formatted(.dateTime.day().month(.abbreviated))
+    }
+
+    /// Time left until a reset: "45m", "3h 12m", "2d 4h".
+    static func countdown(to date: Date, now: Date) -> String {
+        let minutes = max(0, Int(date.timeIntervalSince(now) / 60))
+        if minutes < 60 { return "\(minutes)m" }
+        if minutes < 24 * 60 { return minutes % 60 == 0 ? "\(minutes / 60)h" : "\(minutes / 60)h \(minutes % 60)m" }
+        let hours = minutes / 60
+        return hours % 24 == 0 ? "\(hours / 24)d" : "\(hours / 24)d \(hours % 24)h"
+    }
 }

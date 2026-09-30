@@ -46,11 +46,24 @@ public struct UsageShare: Equatable, Sendable, Identifiable {
     public var totals: UsageTotals
 }
 
-/// One local calendar day of use.
+/// One bar of the trend: a local calendar day, or an hour in the 24 h range.
 public struct UsageDay: Equatable, Sendable, Identifiable {
     public var start: Date
     public var totals: UsageTotals
+    /// The same, per agent, for bars stacked by agent.
+    public var byAgent: [AgentKind: UsageTotals] = [:]
     public var id: Date { start }
+
+    public init(start: Date, totals: UsageTotals, byAgent: [AgentKind: UsageTotals] = [:]) {
+        self.start = start
+        self.totals = totals
+        self.byAgent = byAgent
+    }
+
+    mutating func add(_ record: UsageRecord) {
+        totals.add(record)
+        byAgent[record.agent, default: UsageTotals()].add(record)
+    }
 }
 
 /// Everything the pane shows for one range.
@@ -64,6 +77,10 @@ public struct UsageSummary: Equatable, Sendable {
     public var byProject: [UsageShare]
     /// Oldest first, ending today; empty for the 24 h range.
     public var days: [UsageDay]
+    /// The 24 h range by hour, oldest first, ending with the current hour; empty for the other ranges.
+    public var hours: [UsageDay] = []
+    /// Bars for this range's trend: hours for 24 h, days otherwise.
+    public var trend: [UsageDay] { range == .day ? hours : days }
 
     public static let projectLimit = 8
 
@@ -83,6 +100,12 @@ public struct UsageSummary: Equatable, Sendable {
                 days.append(UsageDay(start: start, totals: UsageTotals()))
             }
         }
+        // 24 bars ending with the current hour; the first holds what the rolling window keeps of its hour.
+        var hours: [UsageDay] = []
+        let thisHour = calendar.dateInterval(of: .hour, for: now)?.start ?? now
+        if range == .day {
+            hours = (0..<24).reversed().map { UsageDay(start: thisHour.addingTimeInterval(-3_600 * Double($0)), totals: UsageTotals()) }
+        }
         for record in records where record.date >= since && record.date <= now {
             total.add(record)
             agents[record.agent, default: UsageTotals()].add(record)
@@ -91,7 +114,11 @@ public struct UsageSummary: Equatable, Sendable {
             let project = record.project.isEmpty ? "Unknown folder" : record.project
             projects[project, default: ([], UsageTotals())].agents.insert(record.agent)
             projects[project]?.totals.add(record)
-            if let position = dayIndex[calendar.startOfDay(for: record.date)] { days[position].totals.add(record) }
+            if let position = dayIndex[calendar.startOfDay(for: record.date)] { days[position].add(record) }
+            if !hours.isEmpty {
+                let position = 23 + Int((record.date.timeIntervalSince(thisHour) / 3_600).rounded(.down))
+                if hours.indices.contains(position) { hours[position].add(record) }
+            }
         }
         let byAgent = agents.map { UsageShare(id: $0.key.rawValue, name: $0.key.displayName, agent: $0.key, totals: $0.value) }
         let byModel = models.map { UsageShare(id: $0.key, name: $0.key, agent: $0.value.agent, totals: $0.value.totals) }
@@ -105,7 +132,7 @@ public struct UsageSummary: Equatable, Sendable {
                 + [UsageShare(id: "\u{0}other", name: "Other", agent: nil, totals: other)]
         }
         return UsageSummary(range: range, since: since, total: total, byAgent: ranked(byAgent), byModel: ranked(byModel),
-                            byProject: byProject, days: days)
+                            byProject: byProject, days: days, hours: hours)
     }
 
     /// Most API value first; then most tokens (unpriced models), then name, so order is stable.

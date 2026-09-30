@@ -55,6 +55,8 @@ public final class Preferences {
         static let barBadge = "menuBarBadge"
         static let barEmpty = "menuBarEmpty"
         static let barPace = "menuBarPace"
+        static let notifyLimitReset = "notifyLimitReset"
+        static let limitResetMuted = "limitResetMutedAccounts"
     }
 
     public var animateCat: Bool { didSet { defaults.set(animateCat, forKey: Key.animateCat) } }
@@ -65,6 +67,12 @@ public final class Preferences {
     /// Off by default: with many sessions it gets chatty.
     public var notifyDone: Bool { didSet { defaults.set(notifyDone, forKey: Key.notifyDone) } }
     public var connectCardDismissed: Bool { didSet { defaults.set(connectCardDismissed, forKey: Key.connectCardDismissed) } }
+    /// A notification when a plan window with some use renews.
+    public var notifyLimitReset: Bool { didSet { defaults.set(notifyLimitReset, forKey: Key.notifyLimitReset) } }
+    /// Accounts (`UsageLimits.id`) whose resets stay quiet; every other account notifies.
+    public var limitResetMuted: Set<String> {
+        didSet { defaults.set(limitResetMuted.sorted(), forKey: Key.limitResetMuted) }
+    }
     public var coat: CatCoat { didSet { defaults.set(coat.rawValue, forKey: Key.coat) } }
     public var poses: CatPoses { didSet { defaults.set(poses.stored, forKey: Key.poses) } }
     public var menuBar: MenuBarLook {
@@ -87,6 +95,8 @@ public final class Preferences {
         notifyError = defaults.object(forKey: Key.notifyError) as? Bool ?? true
         notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? false
         connectCardDismissed = defaults.bool(forKey: Key.connectCardDismissed)
+        notifyLimitReset = defaults.object(forKey: Key.notifyLimitReset) as? Bool ?? true
+        limitResetMuted = Set(defaults.stringArray(forKey: Key.limitResetMuted) ?? [])
         coat = defaults.string(forKey: Key.coat).flatMap(CatCoat.init) ?? .classic
         poses = CatPoses(stored: defaults.dictionary(forKey: Key.poses) as? [String: String] ?? [:])
         menuBar = MenuBarLook(

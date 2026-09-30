@@ -99,6 +99,16 @@ final class AgentHooksModel {
         return Bundle.main.executableURL?.deletingLastPathComponent().appending(path: "opusbar-hook") ?? helper
     }
 
+    /// Every known Claude profile's `.claude.json` (account and cached plan limits). Thread-safe.
+    nonisolated static func claudeAccountFiles(environment: [String: String]) -> [URL] {
+        let userAdded = UserDefaults.standard.stringArray(forKey: ClaudeProfiles.userDefaultsKey) ?? []
+        let home = ClaudeConfigPaths.homeDirectory(environment: environment)
+        var seen = Set<String>()
+        return ClaudeProfiles.all(environment: environment, userAdded: userAdded)
+            .flatMap { $0.accountFiles(home: home) }
+            .filter { seen.insert($0.standardizedFileURL.path).inserted }
+    }
+
     /// Project roots of every known Claude profile, for discovery. Thread-safe: reads UserDefaults directly.
     nonisolated static func claudeProjectRoots(environment: [String: String]) -> [URL] {
         let userAdded = UserDefaults.standard.stringArray(forKey: ClaudeProfiles.userDefaultsKey) ?? []

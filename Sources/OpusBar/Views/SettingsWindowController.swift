@@ -58,6 +58,32 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window?.makeKeyAndOrderFront(nil)
     }
 
+    #if DEBUG
+    /// Renders a pane offscreen to a PNG without showing or activating anything (`--dump-settings <pane> <png>`).
+    func dump(_ pane: SettingsPane, to path: String) {
+        let navigation = SettingsNavigation()
+        navigation.pane = pane
+        let view = NSHostingView(rootView: SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
+                                                        launchAtLogin: launchAtLogin, notifier: notifier, store: store,
+                                                        entitlements: entitlements, usage: usage))
+        let size = view.fittingSize
+        let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: max(size.width, 760), height: max(size.height, 600)),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.contentView = view
+        window.orderFrontRegardless()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+            view.layoutSubtreeIfNeeded()
+            if let rep = view.bitmapImageRepForCachingDisplay(in: view.bounds) {
+                view.cacheDisplay(in: view.bounds, to: rep)
+                try? rep.representation(using: .png, properties: [:])?.write(to: URL(fileURLWithPath: path))
+            }
+            window.orderOut(nil)
+            NSLog("OpusBar dumped settings to %@", path)
+        }
+    }
+    #endif
+
     func windowWillClose(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
     }

@@ -3,7 +3,7 @@ import Observation
 import OpusBarCore
 import OpusBarWire
 
-/// Usage for the dropdown strip and the Usage and Spend pane. A private serial queue owns the store and the log watcher: the first
+/// Usage and plan limits for the menu bar, the dropdown strip and the Usage and Spend pane. A private serial queue owns the store and the log watcher: the first
 /// scan reads 90 days of logs there, then file events and dropdown opens read only what was appended.
 /// The main thread only receives finished totals.
 @MainActor @Observable
@@ -16,18 +16,26 @@ final class UsageModel {
     /// Nil until the first scan finishes.
     var last24h: UsageTotals? { summaries[.day]?.total }
 
+    /// Plan limits per account: each Claude profile's cache from Claude Code, and Codex's rollouts. Claude
+    /// accounts first. Empty when none is known.
+    private(set) var limits: [UsageLimits] = []
+
     @ObservationIgnored private let worker: UsageWorker
 
     init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
-         prices: UsagePriceList = UsageModel.bundledPrices()) {
-        worker = UsageWorker(claudeRoots: claudeRoots, codexRoots: codexRoots, prices: prices)
+         claudeAccountFiles: @escaping @Sendable () -> [URL], prices: UsagePriceList = UsageModel.bundledPrices()) {
+        worker = UsageWorker(claudeRoots: claudeRoots, codexRoots: codexRoots, claudeAccountFiles: claudeAccountFiles,
+                             prices: prices)
     }
 
     /// First scan, then watching.
     func start() {
-        worker.start { [weak self] summaries in
+        worker.start { [weak self] summaries, limits in
             guard let self else { return }
-            Task { @MainActor in self.summaries = summaries }
+            Task { @MainActor in
+                if self.summaries != summaries { self.summaries = summaries }
+                if self.limits != limits { self.limits = limits }
+            }
         }
     }
 
@@ -57,15 +65,25 @@ private final class UsageWorker: @unchecked Sendable {
     private var watching: [String] = []
     /// A refresh is queued and not yet run: further requests join it.
     private var refreshQueued = false
-    private var publish: (@Sendable ([UsageRange: UsageSummary]) -> Void)?
+    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void)?
+    private let claudeLimits: ClaudeCodeLimitsReader
+    /// Windows renew and Claude Code rewrites its cache without a log changing: look again each minute.
+    private var clock: DispatchSourceTimer?
 
-    init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL], prices: UsagePriceList) {
+    init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
+         claudeAccountFiles: @escaping @Sendable () -> [URL], prices: UsagePriceList) {
         store = UsageStore(claudeRoots: claudeRoots, codexRoots: codexRoots, prices: prices)
+        claudeLimits = ClaudeCodeLimitsReader(files: claudeAccountFiles)
     }
 
-    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary]) -> Void) {
+    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void) {
         queue.async { [self] in
             self.publish = publish
+            let clock = DispatchSource.makeTimerSource(queue: queue)
+            clock.schedule(deadline: .now() + 60, repeating: 60, leeway: .seconds(10))
+            clock.setEventHandler { [weak self] in self?.send() }
+            clock.resume()
+            self.clock = clock
             watcher = UsageLogWatcher(queue: queue) { [weak self] paths, rescan in
                 guard let self else { return }
                 if rescan { runRefresh() } else { store.read(paths: paths); send() }
@@ -75,6 +93,16 @@ private final class UsageWorker: @unchecked Sendable {
                       rescan ? 1 : 0, totals.replies, totals.cost)
                 #endif
             }
+            // The 24 h figures first (files changed in two days), so the menu has them within moments of
+            // launch; the longer ranges follow when the 90-day read ends.
+            #if DEBUG
+            let started = Date()
+            #endif
+            store.refresh(recent: 2 * 86_400)
+            send(ranges: [.day])
+            #if DEBUG
+            NSLog("OpusBar usage: 24 h ready in %.0f ms", Date().timeIntervalSince(started) * 1000)
+            #endif
             runRefresh()
         }
     }
@@ -113,14 +141,16 @@ private final class UsageWorker: @unchecked Sendable {
         send()
     }
 
-    /// Every range at once: a few milliseconds over months of replies, at most about once a second.
-    private func send() {
+    /// Every range and the limits at once: a few milliseconds over months of replies, at most about once a second.
+    /// `ranges` narrows it during the first read, when only the recent files are in.
+    private func send(ranges: [UsageRange] = UsageRange.allCases) {
         let now = Date()
         let records = store.records
         var summaries: [UsageRange: UsageSummary] = [:]
-        for range in UsageRange.allCases {
+        for range in ranges {
             summaries[range] = UsageSummary.make(records: records, range: range, now: now)
         }
-        publish?(summaries)
+        let limits = (claudeLimits.read() + [store.codexLimits].compactMap { $0 }).map { $0.asOf(now) }
+        publish?(summaries, limits)
     }
 }

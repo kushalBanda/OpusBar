@@ -1,6 +1,7 @@
 import AppKit
 import CoreText
 import OpusBarCore
+import OpusBarWire
 import SwiftUI
 
 /// Mockup tokens (`mockups/_base.css`): beige canvas, charcoal ink, flat state tiles.
@@ -19,6 +20,16 @@ enum Theme {
     /// Charcoal on every brand fill (AA).
     static let onColor = Color(hex: 0x2C2E2A)
     static let tileLight = Color(hex: 0xFFFDF7)
+    /// Each agent's series color in usage charts (validated as a pair for light and dark, CVD-safe).
+    static func agent(_ agent: AgentKind) -> Color {
+        switch agent {
+        case .claude: dynamic(light: 0xD97757, dark: 0xCC6D4F)
+        case .codex: dynamic(light: 0x5B7FFF, dark: 0x6F8CF5)
+        }
+    }
+
+    /// The lifted segment of a segmented control: lighter than any surface it sits on, in both modes.
+    static let pill = dynamic(light: 0xFFFDF7, dark: 0x55574F)
 
     /// Brand type: Inter (bundled, OFL), falling back to the system font if it failed to register.
     static func font(_ size: CGFloat, _ weight: Font.Weight = .medium) -> Font {
@@ -185,5 +196,63 @@ extension EnvironmentValues {
     var catPoses: CatPoses {
         get { self[CatPosesKey.self] }
         set { self[CatPosesKey.self] = newValue }
+    }
+}
+
+/// A segmented control: a faint track with the chosen segment lifted on a pill. A pressed segment dims at
+/// once; only the pill moves (critically damped spring, a cross-fade under Reduce Motion), so what the
+/// selection drives elsewhere is not swept into the animation. Plain buttons, since gestures get no events
+/// while a menu tracks the mouse.
+struct SegmentedPicker<Value: Hashable>: View {
+    let options: [Value]
+    @Binding var selection: Value
+    var size: CGFloat = 12
+    /// A trailing glyph per option (a lock on a Pro range); nil for none.
+    var badge: (Value) -> String? = { _ in nil }
+    let label: (Value) -> String
+    @Namespace private var pill
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    static var spring: Animation { .spring(response: 0.3, dampingFraction: 1) }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.self) { option in
+                let on = option == selection
+                Button {
+                    if !on { selection = option }
+                } label: {
+                    HStack(spacing: 3) {
+                        Text(label(option)).font(Theme.font(size, on ? .semibold : .medium)).lineLimit(1)
+                        if let badge = badge(option) {
+                            Image(systemName: badge).font(.system(size: size - 3, weight: .semibold)).opacity(0.6)
+                        }
+                    }
+                    .padding(.horizontal, size * 0.8)
+                    .padding(.vertical, size * 0.36)
+                    .foregroundStyle(Theme.ink.opacity(on ? 1 : 0.6))
+                    .background {
+                        if on {
+                            Capsule().fill(Theme.pill)
+                                .shadow(color: .black.opacity(0.18), radius: 1.5, y: 0.5)
+                                .matchedGeometryEffect(id: "pill", in: pill)
+                        }
+                    }
+                    .contentShape(Capsule())
+                }
+                .buttonStyle(SegmentButtonStyle())
+                .accessibilityAddTraits(on ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(Theme.ink.opacity(0.08)))
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : Self.spring, value: selection)
+    }
+}
+
+/// Feedback on press, not on release: the segment dims while held.
+private struct SegmentButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label.opacity(configuration.isPressed ? 0.6 : 1)
     }
 }

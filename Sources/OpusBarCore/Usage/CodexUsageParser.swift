@@ -11,6 +11,8 @@ public enum CodexUsageParser {
         public var model = ""
         /// Fast tier (named "priority" before mid 2026) bills at a premium.
         public var fast = false
+        /// The latest plan limits the file copied from the server, main allowance only.
+        public var limits: UsageLimits?
         /// Newer rollouts write one `token_usage_record` per reply; older ones only running totals,
         /// used until a record appears.
         var sawRecords = false
@@ -85,6 +87,10 @@ public enum CodexUsageParser {
                 if let tier = settings?["service_tier"] as? String { state.fast = isFast(tier) }
                 return nil
             }
+            if let date, let rateLimits = payload["rate_limits"] as? [String: Any], let reading = limits(rateLimits, observed: date),
+               reading.observedAt >= (state.limits?.observedAt ?? .distantPast) {
+                state.limits = reading
+            }
             // Running totals repeat when only the limits changed; a reply is what the total grew by.
             guard !state.sawRecords, let date, let info = payload["info"] as? [String: Any],
                   let totalJSON = info["total_token_usage"] as? [String: Any]
@@ -99,6 +105,30 @@ public enum CodexUsageParser {
             break
         }
         return nil
+    }
+
+    /// Codex logs a reading per allowance: the main one under "codex" (unnamed in older logs), and one per
+    /// model that has its own. Only the main one is kept. Windows are told apart by length, never by slot:
+    /// an account can report only its weekly window, in either slot.
+    static func limits(_ json: [String: Any], observed: Date) -> UsageLimits? {
+        let id = (json["limit_id"] as? String ?? "").lowercased()
+        guard id.isEmpty || id == "codex" else { return nil }
+        var windows: [UsageLimitWindow] = []
+        for slot in ["primary", "secondary"] {
+            guard let window = json[slot] as? [String: Any], let used = (window["used_percent"] as? NSNumber)?.doubleValue,
+                  used.isFinite
+            else { continue }
+            let minutes = (window["window_minutes"] as? NSNumber)?.intValue
+            var resets = (window["resets_at"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue) }
+            if resets == nil, let delay = (window["resets_in_seconds"] as? NSNumber)?.doubleValue, delay.isFinite {
+                resets = observed.addingTimeInterval(max(0, delay))
+            }
+            windows.append(UsageLimitWindow(id: "codex.\(minutes.map(String.init) ?? slot)", kind: UsageLimitWindow.kind(minutes: minutes),
+                                            minutes: minutes, usedPercent: used, resetsAt: resets))
+        }
+        guard !windows.isEmpty else { return nil }
+        return UsageLimits(agent: .codex, account: "codex", windows: windows.sorted { ($0.minutes ?? .max) < ($1.minutes ?? .max) },
+                           observedAt: observed, source: .sessionLog)
     }
 
     static func isFast(_ tier: String?) -> Bool {
