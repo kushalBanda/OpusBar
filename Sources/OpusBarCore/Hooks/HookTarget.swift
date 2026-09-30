@@ -9,8 +9,8 @@ public struct HookTarget: Equatable, Sendable, Identifiable {
     public var fileURL: URL
     public var events: [HookEventName]
     public var async: Bool
-    /// Set for Claude profiles; nil for Codex.
-    public var claudeOrigin: ClaudeProfile.Origin?
+    /// How OpusBar found the folder.
+    public var origin: ClaudeProfile.Origin
     public var id: String { "\(agent.rawValue):\(fileURL.path)" }
 
     /// Events Codex 0.155 fires that the reducer uses. Codex has no Notification or StopFailure.
@@ -21,17 +21,18 @@ public struct HookTarget: Equatable, Sendable, Identifiable {
 
     public static func claude(_ profile: ClaudeProfile) -> HookTarget {
         HookTarget(agent: .claude, root: profile.root, fileURL: profile.settingsURL,
-                   events: HookEventName.subscribed, async: true, claudeOrigin: profile.origin)
+                   events: HookEventName.subscribed, async: true, origin: profile.origin)
+    }
+
+    public static func codex(_ home: CodexHome) -> HookTarget {
+        HookTarget(agent: .codex, root: home.root, fileURL: home.hooksURL, events: codexEvents, async: false,
+                   origin: home.origin)
     }
 
     /// `$CODEX_HOME/hooks.json`, or `~/.codex/hooks.json`. Nil when Codex has never run here.
     public static func codex(environment: [String: String]) -> HookTarget? {
-        let home = ClaudeConfigPaths.homeDirectory(environment: environment)
-        let codexHome = environment["CODEX_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0, isDirectory: true) : nil }
-            ?? home.appending(path: ".codex", directoryHint: .isDirectory)
-        guard FileManager.default.fileExists(atPath: codexHome.path) else { return nil }
-        return HookTarget(agent: .codex, root: codexHome.standardizedFileURL, fileURL: codexHome.appending(path: "hooks.json"),
-                          events: codexEvents, async: false, claudeOrigin: nil)
+        let homes = CodexHomes.all(environment: environment, userAdded: [])
+        return (homes.first { $0.origin == .environment } ?? homes.first { $0.origin == .standard }).map(codex)
     }
 
     public func status(paths: OpusBarPaths) -> HookInstaller.Status { installer(paths: paths).status() }

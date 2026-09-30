@@ -46,6 +46,9 @@ public struct UsageRecord: Equatable, Sendable {
     /// folder, else the folder's own name).
     public var project: String
     public var session: String
+    /// The folder of the account that made the reply (Claude profile or Codex home), canonical path. Set by
+    /// the store; empty when unknown.
+    public var account: String = ""
     public var tokens: UsageTokens
     /// Claude fast mode (`usage.speed == "fast"`), Codex fast/priority tier.
     public var fast: Bool

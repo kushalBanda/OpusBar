@@ -140,8 +140,21 @@ public enum ClaudeCodeLimits {
         ("seven_day_opus", .weekly, 10_080, "Opus"), ("seven_day_sonnet", .weekly, 10_080, "Sonnet")]
 
     public static func limits(profile data: Data) -> UsageLimits? {
-        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let cached = json["cachedUsageUtilization"] as? [String: Any],
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return limits(json: json)
+    }
+
+    /// The email the profile is signed in with, if any.
+    public static func email(profile data: Data) -> String? {
+        ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]).flatMap(email(json:))
+    }
+
+    static func email(json: [String: Any]) -> String? {
+        ((json["oauthAccount"] as? [String: Any])?["emailAddress"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    static func limits(json: [String: Any]) -> UsageLimits? {
+        guard let cached = json["cachedUsageUtilization"] as? [String: Any],
               let utilization = cached["utilization"] as? [String: Any],
               let fetched = (cached["fetchedAtMs"] as? NSNumber)?.doubleValue, fetched.isFinite, fetched > 0
         else { return nil }
@@ -166,34 +179,66 @@ public enum ClaudeCodeLimits {
     }
 }
 
+/// A Claude profile folder and the files that hold its account (see `ClaudeProfile.accountFiles`).
+public struct ClaudeAccountFiles: Sendable {
+    public var root: URL
+    public var files: [URL]
+
+    public init(root: URL, files: [URL]) {
+        self.root = root
+        self.files = files
+    }
+}
+
 /// Reads every Claude profile's cached limits, again only when a file changed, one reading per account
 /// (the newest, when two profiles share an account). Not thread-safe: the owner confines it to one queue.
 public final class ClaudeCodeLimitsReader {
-    private let files: () -> [URL]
-    private var cache: [String: (modified: Date?, limits: UsageLimits?)] = [:]
+    private let profiles: () -> [ClaudeAccountFiles]
+    private var cache: [String: (modified: Date?, limits: UsageLimits?, email: String?)] = [:]
+    /// Each profile folder's signed-in email from the last `read`, by canonical folder path.
+    public private(set) var emails: [String: String] = [:]
 
-    public init(files: @escaping () -> [URL]) { self.files = files }
+    public init(profiles: @escaping () -> [ClaudeAccountFiles]) { self.profiles = profiles }
+
+    /// Files without their folders: `emails` stays keyed by each file's own folder.
+    public convenience init(files: @escaping () -> [URL]) {
+        self.init(profiles: { files().map { ClaudeAccountFiles(root: $0.deletingLastPathComponent(), files: [$0]) } })
+    }
 
     public func read() -> [UsageLimits] {
         var accounts: [String: UsageLimits] = [:]
-        for url in files() {
-            let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-            let limits: UsageLimits?
-            if let known = cache[url.path], known.modified == modified {
-                limits = known.limits
-            } else {
-                limits = modified == nil ? nil : (try? Data(contentsOf: url, options: .mappedIfSafe)).flatMap(ClaudeCodeLimits.limits)
-                cache[url.path] = (modified, limits)
+        var emails: [String: String] = [:]
+        for profile in profiles() {
+            for url in profile.files {
+                let (limits, email) = entry(url)
+                let root = UsageLogReader.canonical(profile.root.path)
+                if emails[root] == nil, let email { emails[root] = email }
+                guard let limits else { continue }
+                add(limits, to: &accounts)
             }
-            guard let limits else { continue }
-            if let known = accounts[limits.account], known.observedAt >= limits.observedAt {
-                if known.label == nil, let label = limits.label { accounts[limits.account]?.label = label }
-                continue
-            }
-            var newest = limits
-            if newest.label == nil { newest.label = accounts[limits.account]?.label }
-            accounts[limits.account] = newest
         }
+        self.emails = emails
         return accounts.values.sorted { ($0.label ?? $0.account) < ($1.label ?? $1.account) }
+    }
+
+    private func entry(_ url: URL) -> (UsageLimits?, String?) {
+        let modified = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        if let known = cache[url.path], known.modified == modified { return (known.limits, known.email) }
+        let json = modified == nil ? nil : (try? Data(contentsOf: url, options: .mappedIfSafe))
+            .flatMap { (try? JSONSerialization.jsonObject(with: $0)) as? [String: Any] }
+        let limits = json.flatMap(ClaudeCodeLimits.limits(json:))
+        let email = json.flatMap(ClaudeCodeLimits.email(json:))
+        cache[url.path] = (modified, limits, email)
+        return (limits, email)
+    }
+
+    private func add(_ limits: UsageLimits, to accounts: inout [String: UsageLimits]) {
+        if let known = accounts[limits.account], known.observedAt >= limits.observedAt {
+            if known.label == nil, let label = limits.label { accounts[limits.account]?.label = label }
+            return
+        }
+        var newest = limits
+        if newest.label == nil { newest.label = accounts[limits.account]?.label }
+        accounts[limits.account] = newest
     }
 }

@@ -40,12 +40,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let environment = ProcessInfo.processInfo.environment
         let discovery = DiscoveryScheduler(store: store, discovery: SessionDiscovery(
             environment: environment,
-            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) }))
+            claudeProjectRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
+            codexHomes: { AgentHooksModel.codexHomes(environment: environment).map(\.root) }))
         discovery.start()
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
-                               codexRoots: { UsageStore.codexRoots(environment: environment) },
+                               codexRoots: { UsageStore.codexRoots(homes: AgentHooksModel.codexHomes(environment: environment)) },
                                claudeAccountFiles: { AgentHooksModel.claudeAccountFiles(environment: environment) })
         usage.start()
         let notifier = SessionNotifier(store: store, preferences: preferences,

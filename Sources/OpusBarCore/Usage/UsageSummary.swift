@@ -72,6 +72,10 @@ public struct UsageSummary: Equatable, Sendable {
     public var since: Date
     public var total: UsageTotals
     public var byAgent: [UsageShare]
+    /// Per account folder (Claude profile, Codex home), named by `names` or the folder.
+    public var byAccount: [UsageShare] = []
+    /// Some agent has more than one account in this range: a split by account says more than by agent.
+    public var hasSeveralAccounts: Bool { byAccount.count > byAgent.count }
     public var byModel: [UsageShare]
     /// Largest eight, then "Other".
     public var byProject: [UsageShare]
@@ -84,11 +88,13 @@ public struct UsageSummary: Equatable, Sendable {
 
     public static let projectLimit = 8
 
-    public static func make(records: [UsageRecord], range: UsageRange, now: Date,
-                            calendar: Calendar = .current) -> UsageSummary {
+    /// `names` maps an account folder to what to call it (the Claude email); others go by folder name.
+    public static func make(records: [UsageRecord], range: UsageRange, now: Date, calendar: Calendar = .current,
+                            names: [String: String] = [:]) -> UsageSummary {
         let since = range.start(now: now, calendar: calendar)
         var total = UsageTotals()
         var agents: [AgentKind: UsageTotals] = [:]
+        var accounts: [String: (agent: AgentKind, account: String, totals: UsageTotals)] = [:]
         var models: [String: (agent: AgentKind, totals: UsageTotals)] = [:]
         var projects: [String: (agents: Set<AgentKind>, totals: UsageTotals)] = [:]
         var dayIndex: [Date: Int] = [:]
@@ -109,6 +115,8 @@ public struct UsageSummary: Equatable, Sendable {
         for record in records where record.date >= since && record.date <= now {
             total.add(record)
             agents[record.agent, default: UsageTotals()].add(record)
+            accounts["\(record.agent.rawValue):\(record.account)", default: (record.agent, record.account, UsageTotals())]
+                .totals.add(record)
             let model = UsageFormat.modelName(record.model)
             models[model, default: (record.agent, UsageTotals())].totals.add(record)
             let project = record.project.isEmpty ? "Unknown folder" : record.project
@@ -121,6 +129,10 @@ public struct UsageSummary: Equatable, Sendable {
             }
         }
         let byAgent = agents.map { UsageShare(id: $0.key.rawValue, name: $0.key.displayName, agent: $0.key, totals: $0.value) }
+        let byAccount = accounts.map { id, value in
+            let name = names[value.account] ?? (value.account.isEmpty ? "Unknown account" : AccountFolder.name(value.account))
+            return UsageShare(id: id, name: name, agent: value.agent, totals: value.totals)
+        }
         let byModel = models.map { UsageShare(id: $0.key, name: $0.key, agent: $0.value.agent, totals: $0.value.totals) }
         var byProject = ranked(projects.map {
             UsageShare(id: $0.key, name: $0.key, agent: $0.value.agents.count == 1 ? $0.value.agents.first : nil, totals: $0.value.totals)
@@ -131,7 +143,8 @@ public struct UsageSummary: Equatable, Sendable {
             byProject = Array(byProject.prefix(projectLimit))
                 + [UsageShare(id: "\u{0}other", name: "Other", agent: nil, totals: other)]
         }
-        return UsageSummary(range: range, since: since, total: total, byAgent: ranked(byAgent), byModel: ranked(byModel),
+        return UsageSummary(range: range, since: since, total: total, byAgent: ranked(byAgent), byAccount: ranked(byAccount),
+                            byModel: ranked(byModel),
                             byProject: byProject, days: days, hours: hours)
     }
 

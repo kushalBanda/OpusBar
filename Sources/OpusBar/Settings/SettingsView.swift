@@ -311,7 +311,7 @@ struct NotificationsPane: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             PaneTitle(title: "Notifications",
-                      lead: "Get a macOS notification when a session changes or a plan limit resets. macOS asks for permission the first time.")
+                      lead: "Get a macOS notification when a session changes or a plan limit runs low or resets. macOS asks for permission the first time.")
             Tile {
                 row(.needsAttention, "A session needs you", "Permission prompts and questions.", $preferences.notifyNeedsYou)
                 Divider().opacity(0.5)
@@ -325,20 +325,15 @@ struct NotificationsPane: View {
         .onAppear { notifier.refreshAccess() }
     }
 
-    /// Plan limit resets: one switch for all, then one per account, each on until turned off.
+    /// Plan limits: a switch for resets and one for warnings, then one per account for both, each on until turned off.
     private var limitResets: some View {
         Tile {
-            HStack(spacing: 14) {
-                Image(systemName: "arrow.clockwise.circle.fill").font(.system(size: 22)).foregroundStyle(Theme.onColor)
-                    .frame(width: 40, height: 40)
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.green))
-                TileHeading(title: "A plan limit resets",
-                            subtitle: "When a Claude or Codex window you've used renews, like the 5-hour or weekly limit.")
-                Spacer()
-                Toggle("A plan limit resets", isOn: $preferences.notifyLimitReset)
-                    .labelsHidden().toggleStyle(.switch).tint(Theme.green)
-            }
-            .padding(.vertical, 8)
+            limitRow("arrow.clockwise.circle.fill", "A plan limit resets",
+                     "When a Claude or Codex window you've used renews, like the 5-hour or weekly limit.",
+                     $preferences.notifyLimitReset)
+            Divider().opacity(0.5)
+            limitRow("gauge.with.dots.needle.67percent", "A plan limit is nearly used",
+                     "At 80% and again at 95%, once per window.", $preferences.notifyLimitWarning)
             if usage.limits.isEmpty {
                 Text("Accounts show here once their limits are known. Claude Code saves them when it checks an account.")
                     .font(Theme.font(12, .regular)).opacity(0.6).fixedSize(horizontal: false, vertical: true)
@@ -363,10 +358,24 @@ struct NotificationsPane: View {
                         .labelsHidden().toggleStyle(.switch).controlSize(.small).tint(Theme.green)
                 }
                 .padding(.vertical, 6)
-                .disabled(!preferences.notifyLimitReset)
-                .opacity(preferences.notifyLimitReset ? 1 : 0.5)
+                .disabled(!anyLimitNotice)
+                .opacity(anyLimitNotice ? 1 : 0.5)
             }
         }
+    }
+
+    private var anyLimitNotice: Bool { preferences.notifyLimitReset || preferences.notifyLimitWarning }
+
+    private func limitRow(_ symbol: String, _ title: String, _ subtitle: String, _ isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 14) {
+            Image(systemName: symbol).font(.system(size: 22)).foregroundStyle(Theme.onColor)
+                .frame(width: 40, height: 40)
+                .background(RoundedRectangle(cornerRadius: 12).fill(Theme.green))
+            TileHeading(title: title, subtitle: subtitle)
+            Spacer()
+            Toggle(title, isOn: isOn).labelsHidden().toggleStyle(.switch).tint(Theme.green)
+        }
+        .padding(.vertical, 8)
     }
 
     @ViewBuilder

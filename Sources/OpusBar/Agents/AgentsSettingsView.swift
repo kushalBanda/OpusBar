@@ -22,8 +22,8 @@ struct AgentsSettingsView: View {
                 Button("Add Profile Folder…") { model.addClaudeFolder() }
             }
             section(.codex,
-                    blurb: "Adds OpusBar to hooks.json. Codex asks you to review new hooks: approve them in Codex with /hooks. Running sessions pick them up on restart.") {
-                EmptyView()
+                    blurb: "Adds OpusBar to each home's hooks.json. Codex asks you to review new hooks: approve them in Codex with /hooks. Running sessions pick them up on restart.") {
+                Button("Add Codex Folder…") { model.addCodexFolder() }
             }
             if let error = model.lastError {
                 Text(error).font(Theme.font(12, .regular)).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true)
@@ -72,6 +72,13 @@ private struct TargetTile: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.tileLight))
                 VStack(alignment: .leading, spacing: 4) {
                     TileHeading(title: title, subtitle: subtitle)
+                    if let email = model.emails[row.target.id] {
+                        Label(email, systemImage: "person.crop.circle")
+                            .font(Theme.font(12, .medium))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .help("The account this profile is signed in with")
+                    }
                     Text(displayPath)
                         .font(.system(size: 11).monospaced())
                         .opacity(0.72)
@@ -100,8 +107,8 @@ private struct TargetTile: View {
             Button("Try Again") { model.refresh() }
             Button("Open File") { NSWorkspace.shared.open(row.target.fileURL) }
         }
-        if row.target.claudeOrigin == .userAdded {
-            Button("Forget Folder") { model.removeClaudeFolder(row.target) }
+        if row.target.origin == .userAdded {
+            Button("Forget Folder") { model.removeFolder(row.target) }
                 .buttonStyle(.link).foregroundStyle(Theme.onColor)
         }
     }
@@ -133,11 +140,11 @@ private struct TargetTile: View {
     }
 
     private var subtitle: String {
-        let origin: String = switch row.target.claudeOrigin {
-        case .environment: " From CLAUDE_CONFIG_DIR."
+        let origin: String = switch row.target.origin {
+        case .environment: row.target.agent == .claude ? " From CLAUDE_CONFIG_DIR." : " From CODEX_HOME."
         case .detected: " Found in your home folder."
         case .userAdded: " Folder you added."
-        default: ""
+        case .standard: ""
         }
         switch row.status {
         case .installed:

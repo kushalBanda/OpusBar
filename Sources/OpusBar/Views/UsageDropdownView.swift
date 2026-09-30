@@ -61,6 +61,10 @@ struct UsageDropdownView: View {
                 }
             } else if let summary = usage.summaries[range] {
                 SpendCard(summary: summary)
+                if summary.hasSeveralAccounts {
+                    ShareCard(title: "Accounts", symbol: "person.2", shares: summary.byAccount.map(\.shortName),
+                              byCost: summary.total.unpriced == 0, limit: 6)
+                }
                 if summary.total.replies > 0 {
                     HStack(alignment: .top, spacing: 8) {
                         ShareCard(title: "Models", symbol: "cpu", shares: summary.byModel, byCost: summary.total.unpriced == 0)
@@ -333,9 +337,10 @@ private struct ShareCard: View {
     let symbol: String
     let shares: [UsageShare]
     let byCost: Bool
+    var limit = 3
 
     var body: some View {
-        let shown = Array(shares.prefix(3))
+        let shown = Array(shares.prefix(limit))
         let weight: (UsageShare) -> Double = { byCost ? $0.totals.cost : Double($0.totals.tokens.total) }
         let peak = max(shown.map(weight).max() ?? 0, .leastNonzeroMagnitude)
         UsageCard {
@@ -360,6 +365,15 @@ private struct ShareCard: View {
                 }
             }
         }
+    }
+}
+
+private extension UsageShare {
+    /// An email without its domain: both accounts often share one, and the card is narrow.
+    var shortName: UsageShare {
+        var copy = self
+        copy.name = name.split(separator: "@").first.map(String.init) ?? name
+        return copy
     }
 }
 

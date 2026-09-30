@@ -16,14 +16,14 @@ final class UsageModel {
     /// Nil until the first scan finishes.
     var last24h: UsageTotals? { summaries[.day]?.total }
 
-    /// Plan limits per account: each Claude profile's cache from Claude Code, and Codex's rollouts. Claude
-    /// accounts first. Empty when none is known.
+    /// Plan limits per account: each Claude profile's cache from Claude Code, and each Codex home's rollouts.
+    /// Claude accounts first. Empty when none is known.
     private(set) var limits: [UsageLimits] = []
 
     @ObservationIgnored private let worker: UsageWorker
 
     init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
-         claudeAccountFiles: @escaping @Sendable () -> [URL], prices: UsagePriceList = UsageModel.bundledPrices()) {
+         claudeAccountFiles: @escaping @Sendable () -> [ClaudeAccountFiles], prices: UsagePriceList = UsageModel.bundledPrices()) {
         worker = UsageWorker(claudeRoots: claudeRoots, codexRoots: codexRoots, claudeAccountFiles: claudeAccountFiles,
                              prices: prices)
     }
@@ -71,9 +71,9 @@ private final class UsageWorker: @unchecked Sendable {
     private var clock: DispatchSourceTimer?
 
     init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
-         claudeAccountFiles: @escaping @Sendable () -> [URL], prices: UsagePriceList) {
+         claudeAccountFiles: @escaping @Sendable () -> [ClaudeAccountFiles], prices: UsagePriceList) {
         store = UsageStore(claudeRoots: claudeRoots, codexRoots: codexRoots, prices: prices)
-        claudeLimits = ClaudeCodeLimitsReader(files: claudeAccountFiles)
+        claudeLimits = ClaudeCodeLimitsReader(profiles: claudeAccountFiles)
     }
 
     func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void) {
@@ -146,11 +146,11 @@ private final class UsageWorker: @unchecked Sendable {
     private func send(ranges: [UsageRange] = UsageRange.allCases) {
         let now = Date()
         let records = store.records
+        let limits = (claudeLimits.read() + store.codexLimits).map { $0.asOf(now) }
         var summaries: [UsageRange: UsageSummary] = [:]
         for range in ranges {
-            summaries[range] = UsageSummary.make(records: records, range: range, now: now)
+            summaries[range] = UsageSummary.make(records: records, range: range, now: now, names: claudeLimits.emails)
         }
-        let limits = (claudeLimits.read() + [store.codexLimits].compactMap { $0 }).map { $0.asOf(now) }
         publish?(summaries, limits)
     }
 }

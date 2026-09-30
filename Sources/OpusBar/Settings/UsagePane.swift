@@ -82,6 +82,9 @@ struct UsagePane: View {
             ShareList(title: "By model", shares: summary.byModel)
         }
         .fixedSize(horizontal: false, vertical: true)
+        if summary.hasSeveralAccounts {
+            ShareList(title: "By account", shares: summary.byAccount)
+        }
         ShareList(title: "By project", shares: summary.byProject)
     }
 

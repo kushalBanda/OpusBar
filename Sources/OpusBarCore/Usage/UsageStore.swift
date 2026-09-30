@@ -14,8 +14,12 @@ public final class UsageStore {
     private var ledger: UsageLedger
     private var cursors: [String: UsageLogCursor] = [:]
     private let projects = UsageProjects()
-    /// Canonical root paths from the last refresh, with the agent whose logs they hold.
-    private var roots: [(path: String, agent: AgentKind)] = []
+    /// Canonical root paths from the last refresh, with the agent whose logs they hold and the account
+    /// folder above them (`projects/`, `sessions/` sit in the profile or home).
+    private var roots: [Root] = []
+    private struct Root { var path: String; var agent: AgentKind; var account: String }
+    /// The account folder of each file read.
+    private var accounts: [String: String] = [:]
     public var watchedRoots: [String] { roots.map(\.path) }
 
     public init(claudeRoots: @escaping () -> [URL], codexRoots: @escaping () -> [URL] = { [] }, prices: UsagePriceList,
@@ -34,9 +38,18 @@ public final class UsageStore {
 
     public func totals(since: Date) -> UsageTotals { ledger.totals(since: since) }
 
-    /// Codex's newest limit reading across all rollouts read so far.
-    public var codexLimits: UsageLimits? {
-        cursors.values.compactMap { $0.agent == .codex ? $0.codex.limits : nil }.max { $0.observedAt < $1.observedAt }
+    /// Each Codex home's newest limit reading across its rollouts read so far, by home.
+    public var codexLimits: [UsageLimits] {
+        var newest: [String: UsageLimits] = [:]
+        for cursor in cursors.values where cursor.agent == .codex {
+            guard var limits = cursor.codex.limits else { continue }
+            let home = accounts[cursor.path] ?? ""
+            if let known = newest[home], known.observedAt >= limits.observedAt { continue }
+            limits.account = home
+            limits.label = AccountFolder.name(home)
+            newest[home] = limits
+        }
+        return newest.values.sorted { $0.account < $1.account }
     }
 
     /// Finds log files changed within the history window and reads what each gained. Covers files the
@@ -47,32 +60,35 @@ public final class UsageStore {
         let horizon = now.addingTimeInterval(-history)
         let changedSince = recent.map { max(horizon, now.addingTimeInterval(-$0)) } ?? horizon
         resolveRoots()
-        var files: [(path: String, agent: AgentKind)] = []
-        for (root, agent) in roots {
-            for path in UsageLogReader.logs(under: [URL(fileURLWithPath: root)], changedSince: changedSince) {
-                files.append((UsageLogReader.canonical(path), agent))
+        var files: [(path: String, root: Root)] = []
+        for root in roots {
+            for path in UsageLogReader.logs(under: [URL(fileURLWithPath: root.path)], changedSince: changedSince) {
+                files.append((UsageLogReader.canonical(path), root))
             }
         }
         read(files)
         ledger.drop(before: horizon)
     }
 
-    /// `sessions/` and `archived_sessions/` under `$CODEX_HOME` or `~/.codex`, that exist. Codex moves a
-    /// rollout to the archive unchanged, so a reply found in both counts once (same response id).
+    /// `sessions/` and `archived_sessions/` of every known Codex home, that exist.
+    public static func codexRoots(homes: [CodexHome]) -> [URL] {
+        homes.flatMap(\.sessionRoots).filter { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// The same for `~/.codex`, `$CODEX_HOME` and detected `~/.codex-*` homes.
     public static func codexRoots(environment: [String: String]) -> [URL] {
-        let home = ClaudeConfigPaths.homeDirectory(environment: environment)
-        let codexHome = environment["CODEX_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0, isDirectory: true) : nil }
-            ?? home.appending(path: ".codex", directoryHint: .isDirectory)
-        return ["sessions", "archived_sessions"].map { codexHome.appending(path: $0, directoryHint: .isDirectory) }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        codexRoots(homes: CodexHomes.all(environment: environment, userAdded: []))
     }
 
     private func resolveRoots() {
         var seen = Set<String>()
         roots = (claudeRoots().map { ($0, AgentKind.claude) } + codexRoots().map { ($0, AgentKind.codex) })
             .filter { FileManager.default.fileExists(atPath: $0.0.path) }
-            .map { (UsageLogReader.canonical($0.0.path), $0.1) }
-            .filter { seen.insert($0.0).inserted }
+            .map { url, agent in
+                let path = UsageLogReader.canonical(url.path)
+                return Root(path: path, agent: agent, account: URL(fileURLWithPath: path).deletingLastPathComponent().path)
+            }
+            .filter { seen.insert($0.path).inserted }
     }
 
     /// Reads the given files (watcher events). Paths outside the roots and non-log files are ignored.
@@ -81,7 +97,7 @@ public final class UsageStore {
         for path in paths where path.hasSuffix(".jsonl") {
             let path = UsageLogReader.canonical(path)
             guard let root = roots.first(where: { path.hasPrefix($0.path + "/") }) else { continue }
-            read([(path, root.agent)])
+            read([(path, root)])
         }
         ledger.drop(before: now.addingTimeInterval(-history))
     }
@@ -89,10 +105,11 @@ public final class UsageStore {
     /// Parsing is most of a first scan (hundreds of megabytes of JSON), so files are read in parallel: each
     /// worker owns whole files (a cursor is never shared) and only collects replies. The replies then join
     /// the ledger one at a time in file order, so the result is the same as reading one file after another.
-    private func read(_ files: [(path: String, agent: AgentKind)]) {
+    private func read(_ files: [(path: String, root: Root)]) {
         let batch = files.map { file -> UsageLogCursor in
-            let cursor = cursors[file.path] ?? UsageLogCursor(path: file.path, agent: file.agent)
+            let cursor = cursors[file.path] ?? UsageLogCursor(path: file.path, agent: file.root.agent)
             cursors[file.path] = cursor
+            accounts[file.path] = file.root.account
             return cursor
         }
         let replies = ParallelReplies(count: batch.count)
@@ -100,9 +117,10 @@ public final class UsageStore {
         DispatchQueue.concurrentPerform(iterations: batch.count) { index in
             replies.set(index, Self.collect(batch[index], maxLineBytes: maxLineBytes))
         }
-        for fileReplies in replies.all {
+        for (index, fileReplies) in replies.all.enumerated() {
             for var reply in fileReplies {
                 reply.record.project = projects.name(for: reply.record.project)
+                reply.record.account = files[index].root.account
                 ledger.add(reply.record, key: reply.key)
             }
         }

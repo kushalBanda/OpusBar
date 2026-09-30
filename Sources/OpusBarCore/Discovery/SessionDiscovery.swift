@@ -32,17 +32,20 @@ public struct SessionDiscovery: Sendable {
     let home: URL
     let environment: [String: String]
     let claudeProjectRoots: @Sendable () -> [URL]
+    let codexHomes: @Sendable () -> [URL]
 
     public init(lister: ProcessListing = DarwinProcessLister(),
                 limit: Int = 64,
                 environment: [String: String] = ProcessInfo.processInfo.environment,
-                claudeProjectRoots: (@Sendable () -> [URL])? = nil) {
+                claudeProjectRoots: (@Sendable () -> [URL])? = nil,
+                codexHomes: (@Sendable () -> [URL])? = nil) {
         self.lister = lister
         self.limit = limit
         self.environment = environment
         home = ClaudeConfigPaths.homeDirectory(environment: environment)
         let home = home
         self.claudeProjectRoots = claudeProjectRoots ?? { SessionDiscovery.defaultClaudeProjectRoots(home: home, environment: environment) }
+        self.codexHomes = codexHomes ?? { CodexHomes.all(environment: environment, userAdded: []).map(\.root) }
     }
 
     public func scan(now: Date = Date()) -> [DiscoveredProcess] {
@@ -73,9 +76,9 @@ public struct SessionDiscovery: Sendable {
             }
         }
         if agents.contains(.codex) {
-            let codexHome = environment["CODEX_HOME"].flatMap { $0.hasPrefix("/") ? URL(fileURLWithPath: $0) : nil }
-                ?? home.appending(path: ".codex", directoryHint: .isDirectory)
-            records += SessionRecordReader.codexRollouts(codexHome: codexHome, now: now, budget: &budget)
+            for codexHome in codexHomes() {
+                records += SessionRecordReader.codexRollouts(codexHome: codexHome, now: now, budget: &budget)
+            }
         }
         let matches = SessionCorrelator.match(found, records: records, exact: exact)
         for index in found.indices { found[index].record = matches[found[index].pid] }

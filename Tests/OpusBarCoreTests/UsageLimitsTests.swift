@@ -58,7 +58,7 @@ final class CodexLimitsTests: XCTestCase {
         let roots = UsageStore.codexRoots(environment: ["HOME": home.path])
         let store = UsageStore(claudeRoots: { [] }, codexRoots: { roots }, prices: .empty)
         store.refresh(now: date("2026-09-30T12:00:00Z"))
-        XCTAssertEqual(store.codexLimits?.windows.first?.usedPercent, 55)
+        XCTAssertEqual(store.codexLimits.map { $0.windows.first?.usedPercent }, [55])
     }
 }
 

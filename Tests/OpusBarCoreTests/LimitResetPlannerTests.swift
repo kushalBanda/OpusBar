@@ -53,3 +53,46 @@ final class LimitResetPlannerTests: XCTestCase {
         XCTAssertEqual(again.limitResetMuted, ["claude:work"])
     }
 }
+
+final class LimitWarningPlannerTests: XCTestCase {
+    private let now = UsageTimestamp.parse("2026-09-30T12:00:00Z")!
+
+    private func limits(account: String, label: String?, used: Double, resets: String? = "2026-09-30T14:00:00Z") -> UsageLimits {
+        UsageLimits(agent: .claude, account: account, label: label,
+                    windows: [UsageLimitWindow(id: "claude.five_hour", kind: .session, minutes: 300, usedPercent: used,
+                                               resetsAt: resets.flatMap(UsageTimestamp.parse))],
+                    observedAt: now, source: .claudeCode)
+    }
+
+    func testHighestThresholdOnceAndLowerOnesSettled() {
+        let jump = LimitWarningPlanner.due([limits(account: "me", label: "me@example.com", used: 96)], muted: [], enabled: true,
+                                           sent: [], now: now)
+        XCTAssertEqual(jump.count, 1, "70 to 96 warns once, at 95")
+        XCTAssertEqual(jump[0].notice.title, "Claude Code limit 95% used")
+        XCTAssertEqual(jump[0].notice.body, "Your 5 h limit is 96% used. It resets in 2h.")
+        XCTAssertEqual(jump[0].keys.count, 2)
+        XCTAssertTrue(LimitWarningPlanner.due([limits(account: "me", label: nil, used: 97)], muted: [], enabled: true,
+                                              sent: Set(jump[0].keys), now: now).isEmpty, "never twice in one period")
+    }
+
+    func testEightyThenNinetyFiveAndNamesAccounts() {
+        let accounts = [limits(account: "me", label: "me@example.com", used: 82), limits(account: "work", label: "work@example.com", used: 50)]
+        let first = LimitWarningPlanner.due(accounts, muted: [], enabled: true, sent: [], now: now)
+        XCTAssertEqual(first.map(\.notice.title), ["Claude Code limit 80% used"])
+        XCTAssertEqual(first[0].notice.body, "Your 5 h limit (me) is 82% used. It resets in 2h.")
+        let later = LimitWarningPlanner.due([limits(account: "me", label: "me@example.com", used: 95)], muted: [], enabled: true,
+                                            sent: Set(first[0].keys), now: now)
+        XCTAssertEqual(later.map(\.notice.title), ["Claude Code limit 95% used"])
+    }
+
+    func testMutedDisabledAndNextPeriod() {
+        let hot = [limits(account: "me", label: nil, used: 90)]
+        XCTAssertTrue(LimitWarningPlanner.due(hot, muted: ["claude:me"], enabled: true, sent: [], now: now).isEmpty)
+        XCTAssertTrue(LimitWarningPlanner.due(hot, muted: [], enabled: false, sent: [], now: now).isEmpty)
+        let keys = Set(LimitWarningPlanner.due(hot, muted: [], enabled: true, sent: [], now: now).flatMap(\.keys))
+        let next = [limits(account: "me", label: nil, used: 90, resets: "2026-09-30T19:00:00Z")]
+        XCTAssertEqual(LimitWarningPlanner.due(next, muted: [], enabled: true, sent: keys, now: now).count, 1, "a new period warns again")
+        XCTAssertEqual(LimitWarningPlanner.unexpired(keys, now: now), keys)
+        XCTAssertTrue(LimitWarningPlanner.unexpired(keys, now: UsageTimestamp.parse("2026-09-30T15:00:00Z")!).isEmpty)
+    }
+}

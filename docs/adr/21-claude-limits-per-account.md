@@ -13,6 +13,9 @@ The owner runs two Claude accounts (`CLAUDE_CONFIG_DIR=~/.claude` and `~/.claude
 - **The desktop app file is no longer read** (supersedes ADR 20's Claude source). Codex stays as ADR 20 has it.
 - **Dropdown Usage tab (vorssaint's layout):** a card per account (agent dot, the name before the @ when an agent has several accounts, "updated … ago"), with the session and the longer window that binds first: % left, countdown to reset, a meter with an even-pace tick; then the range picker, the API value with tokens and replies over a trend stacked by agent (hourly for 24 h, daily otherwise; hover shows a bar's figures; legend when two agents have use), then top-3 Models and Projects with bars in the agent's color. Agent colors: Claude #D97757 / #CC6D4F (dark), Codex #5B7FFF / #6F8CF5 (dark), passed the dataviz palette checks.
 
+- **Codex homes (owner, 2026-09-30):** `~/.codex`, `$CODEX_HOME`, `~/.codex-<name>` folders holding `sessions/` or `config.toml` (origin `detected`), and folders added with "Add Codex Folder…". Each home is one account: its own Connect tile, limits card (named by folder, e.g. "codex-work"), reset switch and spend. `auth.json` is never read, so a Codex account has no email.
+- **Spend per account:** each reply carries the folder of the account that made it (`UsageRecord.account`). "By account" (Settings > Usage, dropdown "Accounts") appears when an agent has more than one account in the range; Claude accounts are named by their email, others by folder. Agents tiles show each Claude profile's email.
+
 ## Consequences
 - A Claude account shows limits once Claude Code has checked it at least once in that profile; readings age between runs.
 - `.claude.json` is Claude Code's private format; an unknown shape shows nothing rather than a guess.

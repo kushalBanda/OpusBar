@@ -57,6 +57,7 @@ public final class Preferences {
         static let barPace = "menuBarPace"
         static let notifyLimitReset = "notifyLimitReset"
         static let limitResetMuted = "limitResetMutedAccounts"
+        static let notifyLimitWarning = "notifyLimitWarning"
     }
 
     public var animateCat: Bool { didSet { defaults.set(animateCat, forKey: Key.animateCat) } }
@@ -69,7 +70,9 @@ public final class Preferences {
     public var connectCardDismissed: Bool { didSet { defaults.set(connectCardDismissed, forKey: Key.connectCardDismissed) } }
     /// A notification when a plan window with some use renews.
     public var notifyLimitReset: Bool { didSet { defaults.set(notifyLimitReset, forKey: Key.notifyLimitReset) } }
-    /// Accounts (`UsageLimits.id`) whose resets stay quiet; every other account notifies.
+    /// A notification when a plan window reaches 80 % and 95 % used.
+    public var notifyLimitWarning: Bool { didSet { defaults.set(notifyLimitWarning, forKey: Key.notifyLimitWarning) } }
+    /// Accounts (`UsageLimits.id`) whose limit notifications (resets and warnings) stay quiet.
     public var limitResetMuted: Set<String> {
         didSet { defaults.set(limitResetMuted.sorted(), forKey: Key.limitResetMuted) }
     }
@@ -96,6 +99,7 @@ public final class Preferences {
         notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? false
         connectCardDismissed = defaults.bool(forKey: Key.connectCardDismissed)
         notifyLimitReset = defaults.object(forKey: Key.notifyLimitReset) as? Bool ?? true
+        notifyLimitWarning = defaults.object(forKey: Key.notifyLimitWarning) as? Bool ?? true
         limitResetMuted = Set(defaults.stringArray(forKey: Key.limitResetMuted) ?? [])
         coat = defaults.string(forKey: Key.coat).flatMap(CatCoat.init) ?? .classic
         poses = CatPoses(stored: defaults.dictionary(forKey: Key.poses) as? [String: String] ?? [:])
