@@ -8,7 +8,7 @@
 
 Every Claude Code and Codex session at a glance. Know the second one needs you, and see how much of your plan is left.
 
-[**Install OpusBar**](#install)
+[**Install OpusBar**](#install) · [Website](https://kushalbanda.com/opusbar/)
 
 Free and open source · macOS 14 or later · Apple silicon and Intel
 
