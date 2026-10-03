@@ -42,7 +42,7 @@ else
   lipo -create "${hooks[@]}" -output "$APP/Contents/Helpers/opusbar-hook"
 fi
 # Flat copies so Bundle.main finds them; the SwiftPM resource bundle is only for `swift run`.
-cp -R Sources/OpusBar/Resources/Coats "$APP/Contents/Resources/"
+cp -R Sources/OpusBar/Resources/Coats Sources/OpusBar/Resources/AgentLogos "$APP/Contents/Resources/"
 cp Sources/OpusBar/Resources/Catppuccineko-LICENSE.txt Sources/OpusBar/Resources/spicetify-oneko-LICENSE.txt \
    Sources/OpusBar/Resources/0xdhrv-oneko-LICENSE.txt \
    Sources/OpusBar/Resources/InterVariable.ttf Sources/OpusBar/Resources/Inter-LICENSE.txt \
