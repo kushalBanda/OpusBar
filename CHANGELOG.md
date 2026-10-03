@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1
+
+- Claude Code and Codex logos replace the colour dots in usage limits, the API value legend and Settings.
+
 ## 0.1.0
 
 First public release.
