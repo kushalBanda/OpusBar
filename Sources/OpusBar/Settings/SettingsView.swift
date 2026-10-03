@@ -338,7 +338,7 @@ struct NotificationsPane: View {
             ForEach(usage.limits) { limits in
                 Divider().opacity(0.5)
                 HStack(spacing: 10) {
-                    Circle().fill(Theme.agent(limits.agent)).frame(width: 8, height: 8).padding(.leading, 16)
+                    AgentLogo(agent: limits.agent, size: 14).padding(.leading, 16)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(limits.agent.displayName).font(Theme.font(13, .medium))
                         if let label = limits.label {

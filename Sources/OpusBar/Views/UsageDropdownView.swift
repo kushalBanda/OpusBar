@@ -118,7 +118,7 @@ private struct LimitsCard: View {
     var body: some View {
         UsageCard {
             HStack(spacing: 6) {
-                Circle().fill(Theme.agent(limits.agent)).frame(width: 7, height: 7)
+                AgentLogo(agent: limits.agent, size: 13)
                 Text(limits.agent.displayName).font(Theme.font(12, .semibold))
                 // The name before the @ tells accounts apart in the room a card has; the tooltip has it all.
                 if showsAccount, let label = limits.label {
@@ -214,7 +214,7 @@ private struct SpendCard: View {
                     HStack(spacing: 8) {
                         ForEach(agents, id: \.self) { agent in
                             HStack(spacing: 3) {
-                                Circle().fill(Theme.agent(agent)).frame(width: 6, height: 6)
+                                AgentLogo(agent: agent, size: 11)
                                 Text(agent.displayName).font(Theme.font(10, .medium)).foregroundStyle(.secondary)
                             }
                         }
