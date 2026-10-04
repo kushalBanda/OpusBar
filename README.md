@@ -109,7 +109,7 @@ The cat appears in your menu bar, dimmed until a session starts.
 - For Claude Code, OpusBar adds its hooks and wraps your status line so it can read plan limits. Your own status line still shows, exactly as before. Sessions you started before connecting pick up the hooks once restarted.
 - Codex (0.155 or later) asks you to trust new hooks. Run `/hooks` inside Codex once and approve OpusBar's.
 
-Updates take one click. Each one is signed, and OpusBar checks the signature before it replaces anything.
+Updates install themselves: OpusBar downloads each one in the background, checks its signature, and swaps it in when you quit. A card in the menu shows what changed, once. Prefer a click? Turn off **Install updates automatically** in **Settings › About**. Nothing is replaced before the signature checks out.
 
 ## What it touches
 
@@ -172,4 +172,4 @@ Design decisions live in [`docs/adr`](docs/adr), one short record each, from the
 
 The cat is [oneko](https://en.wikipedia.org/wiki/Neko_(software)), the desktop cat from 1989, by way of [oneko.js](https://github.com/adryd325/oneko.js). Coats come from [0xdhrv/oneko](https://github.com/0xdhrv/oneko), [catppuccineko](https://github.com/k01e-01/catppuccineko) and [spicetify-oneko](https://github.com/kyrie25/spicetify-oneko), under MIT. Full notices are in [LICENSE](LICENSE).
 
-OpusBar is not affiliated with Anthropic or OpenAI. Licensed under [Apache 2.0](LICENSE).
+The Claude Code and Codex logos come from [Lobe Icons](https://github.com/lobehub/lobe-icons) (MIT); the marks belong to Anthropic and OpenAI. OpusBar is not affiliated with either. Licensed under [Apache 2.0](LICENSE).

@@ -1,6 +1,6 @@
 # 23. Unsigned distribution and a signed update check
 
-- Status: Accepted
+- Status: Accepted (updates amended by 25)
 - Date: 2026-09-30
 
 ## Context
