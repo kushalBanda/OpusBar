@@ -24,6 +24,8 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [22](22-opusbar-is-free.md) | OpusBar is free: no Pro, no license | Accepted (amended by 23) |
 | [23](23-unsigned-distribution-and-updates.md) | Unsigned distribution and a signed update check | Accepted |
 | [24](24-live-claude-limits-from-the-status-line.md) | Live Claude limits: the hook steps in front of each connected profile's status line and saves `rate_limits` | Accepted |
+| [25](25-automatic-updates-and-whats-new.md) | Updates download in the background and swap in on quit; a card shows what changed | Accepted |
+| [26](26-agent-logos-in-usage-views.md) | Claude Code and Codex logos replace the colour dots in usage views | Accepted |
 
 Template:
 
