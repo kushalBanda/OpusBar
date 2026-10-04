@@ -5,8 +5,10 @@ import OpusBarCore
 /// Finds and installs newer releases (ADR 23). One request to GitHub's "latest release" API a minute
 /// after launch and then once a day, only while the setting is on; "Check Now" asks once whenever
 /// clicked. Nothing about the user goes along: the request carries OpusBar's name and version only.
-/// An update is installed only on a click, and only when the zip's Ed25519 signature matches the key
-/// built into the app and the new app has our bundle id and the promised version.
+/// With "install automatically" on, a newer release is downloaded and verified in the background and
+/// swapped in when OpusBar next quits; otherwise it installs only on a click. Either way only when the
+/// zip's Ed25519 signature matches the key built into the app and the new app has our bundle id and the
+/// promised version.
 @MainActor @Observable
 final class Updater {
     enum State: Equatable {
@@ -14,6 +16,8 @@ final class Updater {
         case checking
         case upToDate(Date)
         case available(UpdateRelease)
+        /// Downloaded and verified; swaps in when OpusBar quits, or now on a click.
+        case ready(UpdateRelease)
         case installing(UpdateRelease)
         case failed(String)
     }
@@ -23,6 +27,9 @@ final class Updater {
     private(set) var offered: UpdateRelease?
 
     @ObservationIgnored private let preferences: Preferences
+    /// The verified new app waiting in a temporary folder, and whether a swap is already under way.
+    @ObservationIgnored private var staged: (release: UpdateRelease, app: URL)?
+    @ObservationIgnored private var swapStarted = false
     @ObservationIgnored private var timer: Timer?
 
     /// Nil for a build without a version (`swift run`): it never checks on its own.
@@ -30,6 +37,8 @@ final class Updater {
 
     init(preferences: Preferences) {
         self.preferences = preferences
+        // A note for another version (an update that was skipped or never finished) has nothing to say now.
+        if let note = preferences.whatsNew, let current = Self.current, AppVersion(note.version) != current { preferences.whatsNew = nil }
         observe()
         #if DEBUG
         // `--update-now`: check at once and install what's found, for the end-to-end update test.
@@ -85,8 +94,9 @@ final class Updater {
                 let release = status == 200 ? UpdateFeed.release(fromGitHub: data, allowHTTP: Self.feedURL != UpdateFeed.latestURL) : nil
                 if let current = Self.current, let newer = UpdateFeed.newer(release, than: current) {
                     offered = newer
+                    if case .ready(let ready) = state, ready.version == newer.version { return }
                     state = .available(newer)
-                    if thenInstall { install() }
+                    if thenInstall { install() } else if preferences.installUpdatesAutomatically { stage(newer) }
                 } else {
                     offered = nil
                     state = .upToDate(Date())
@@ -97,26 +107,69 @@ final class Updater {
         }
     }
 
-    /// Downloads, verifies and swaps in the offered release, then relaunches.
+    /// Downloads and verifies a release without touching the running app. Quiet: if anything fails the
+    /// release stays on offer for a click.
+    private func stage(_ release: UpdateRelease) {
+        Task {
+            guard let app = try? await Self.fetch(release) else { return }
+            guard case .available(let current) = state, current.version == release.version else { return }
+            staged = (release, app)
+            state = .ready(release)
+        }
+    }
+
+    private static func fetch(_ release: UpdateRelease) async throws -> URL {
+        try preflight(current: Bundle.main.bundleURL)
+        let zip = try await download(release.zip)
+        let signature = String(decoding: try await download(release.signature), as: UTF8.self)
+        guard UpdateFeed.verify(zip, signature: signature) else { throw UpdateError.badSignature }
+        return try unpack(zip, expecting: release.version)
+    }
+
+    /// Swaps in the staged update as OpusBar quits, without opening it again: the next launch is the new one.
+    func applyOnQuit() {
+        guard preferences.installUpdatesAutomatically, case .ready = state, let staged,
+              FileManager.default.fileExists(atPath: staged.app.path) else { return }
+        try? swap(staged, reopen: false)
+    }
+
+    /// Verifies (if not already staged), swaps in the offered release, then relaunches.
     func install() {
         guard let release = offered else { return }
         if case .installing = state { return }
         state = .installing(release)
         Task {
             do {
-                let zip = try await Self.download(release.zip)
-                let signature = String(decoding: try await Self.download(release.signature), as: UTF8.self)
-                guard UpdateFeed.verify(zip, signature: signature) else { throw UpdateError.badSignature }
-                let newApp = try Self.unpack(zip, expecting: release.version)
-                try Self.relaunch(replacing: Bundle.main.bundleURL, with: newApp)
+                if let staged, staged.release.version == release.version, FileManager.default.fileExists(atPath: staged.app.path) {
+                    try swap(staged, reopen: true)
+                    return
+                }
+                let newApp = try await Self.fetch(release)
+                try swap((release, newApp), reopen: true)
             } catch {
                 state = .failed("The update didn't install (\(Self.describe(error))). Nothing was changed.")
             }
         }
     }
 
+    /// Keeps what the card after the update will say, then hands over to the swap script.
+    private func swap(_ update: (release: UpdateRelease, app: URL), reopen: Bool) throws {
+        guard !swapStarted else { return }
+        let note = WhatsNew(version: update.release.version.description,
+                            highlights: ReleaseNotes.highlights(from: update.release.notes))
+        try Self.relaunch(replacing: Bundle.main.bundleURL, with: update.app, reopen: reopen) { [preferences] in
+            preferences.whatsNew = note
+        }
+        swapStarted = true
+    }
+
     func openReleasePage() {
         NSWorkspace.shared.open(offered?.page ?? URL(string: "https://github.com/\(UpdateFeed.repository)/releases")!)
+    }
+
+    /// A past release's page, for "Full notes" on the card after an update.
+    func openReleasePage(version: String) {
+        NSWorkspace.shared.open(URL(string: "https://github.com/\(UpdateFeed.repository)/releases/tag/v\(version)")!)
     }
 
     // MARK: Steps
@@ -162,16 +215,20 @@ final class Updater {
 
     /// A small shell step waits for this process to quit, moves the old app aside, moves the new one in
     /// and opens it; if the move fails, it puts the old app back and opens that.
-    private static func relaunch(replacing current: URL, with new: URL) throws {
+    /// The app can be replaced where it runs: not a read-only copy macOS made for a download, and a writable folder.
+    private static func preflight(current: URL) throws {
         // Opened straight from a download (DMG or Downloads): macOS runs a read-only copy elsewhere.
         guard !current.path.contains("/AppTranslocation/") else { throw UpdateError.translocated }
-        let parent = current.deletingLastPathComponent()
-        guard FileManager.default.isWritableFile(atPath: parent.path) else { throw UpdateError.notWritable }
+        guard FileManager.default.isWritableFile(atPath: current.deletingLastPathComponent().path) else { throw UpdateError.notWritable }
+    }
+
+    private static func relaunch(replacing current: URL, with new: URL, reopen: Bool, beforeStart: () -> Void) throws {
+        try preflight(current: current)
         let aside = new.deletingLastPathComponent().appending(path: "OpusBar-previous.app")
         // DEBUG: the relaunched app keeps a test HOME (LaunchServices starts it with a fresh environment).
-        var open = "/usr/bin/open"
+        var open = reopen ? "/usr/bin/open" : ":"
         #if DEBUG
-        if let home = ProcessInfo.processInfo.environment["HOME"] {
+        if reopen, let home = ProcessInfo.processInfo.environment["HOME"] {
             open += " --env HOME=\"\(home)\""
         }
         #endif
@@ -185,7 +242,8 @@ final class Updater {
         step.arguments = ["-c", script, "opusbar-update", String(ProcessInfo.processInfo.processIdentifier),
                           current.path, new.path, aside.path]
         try step.run()
-        NSApp.terminate(nil)
+        beforeStart()
+        if reopen { NSApp.terminate(nil) }
     }
 
     private static func describe(_ error: Error) -> String {

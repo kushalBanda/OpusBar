@@ -54,6 +54,10 @@ struct SessionListView: View {
             ZStack(alignment: .top) {
                 page(.sessions) {
                     VStack(alignment: .leading, spacing: 10) {
+                        if let note = preferences.whatsNew, note.version == Updater.current?.description {
+                            WhatsNewCard(note: note, fullNotes: { updater.openReleasePage(version: note.version) },
+                                         dismiss: { preferences.whatsNew = nil })
+                        }
                         if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
                                                      dismissed: preferences.connectCardDismissed) {
                             ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })

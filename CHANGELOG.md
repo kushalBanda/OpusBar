@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- Updates now install themselves: OpusBar downloads and checks a new version in the background and swaps it in when you quit. Turn it off in Settings.
+- After an update, the menu shows what changed once.
+
 ## 0.1.1
 
 - Claude Code and Codex logos replace the colour dots in usage limits, the API value legend and Settings.

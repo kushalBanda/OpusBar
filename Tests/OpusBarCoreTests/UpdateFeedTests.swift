@@ -48,3 +48,34 @@ final class UpdateFeedTests: XCTestCase {
                         "the built-in key is a real Ed25519 key")
     }
 }
+
+final class ReleaseNotesTests: XCTestCase {
+    func testBulletsBecomePlainHighlights() {
+        let body = "- **Logos** replace the `dots`.\n* See [notes](https://x.y) here\nplain line\n- \n- Third\n- Fourth\n- Fifth"
+        XCTAssertEqual(ReleaseNotes.highlights(from: body),
+                       ["Logos replace the dots.", "See notes here", "Third", "Fourth"])
+        XCTAssertEqual(ReleaseNotes.highlights(from: body, limit: 1), ["Logos replace the dots."])
+    }
+
+    func testNoBulletsFallsBack() {
+        XCTAssertEqual(ReleaseNotes.highlights(from: ""), [ReleaseNotes.fallback])
+        XCTAssertEqual(ReleaseNotes.highlights(from: "OpusBar 0.2.0"), [ReleaseNotes.fallback])
+    }
+
+    func testFeedCarriesTheReleaseBody() throws {
+        let json = #"{"tag_name":"v0.2.0","body":"- One","html_url":"https://github.com/x/y","assets":[{"name":"OpusBar-0.2.0.zip","browser_download_url":"https://x/z.zip"},{"name":"OpusBar-0.2.0.zip.sig","browser_download_url":"https://x/z.sig"}]}"#
+        XCTAssertEqual(try XCTUnwrap(UpdateFeed.release(fromGitHub: Data(json.utf8))).notes, "- One")
+    }
+
+    @MainActor
+    func testWhatsNewPersists() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: "whatsnew-\(UUID().uuidString)"))
+        let first = Preferences(defaults: defaults)
+        XCTAssertTrue(first.installUpdatesAutomatically)
+        XCTAssertNil(first.whatsNew)
+        first.whatsNew = WhatsNew(version: "0.2.0", highlights: ["One"])
+        XCTAssertEqual(Preferences(defaults: defaults).whatsNew, WhatsNew(version: "0.2.0", highlights: ["One"]))
+        first.whatsNew = nil
+        XCTAssertNil(Preferences(defaults: defaults).whatsNew)
+    }
+}
