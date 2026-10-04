@@ -442,7 +442,7 @@ struct AboutPane: View {
 }
 
 /// Updates: what the last check found, Check Now, and the automatic check switch. An offered release
-/// installs only on a click.
+/// installs on quit when automatic installs are on, or on a click.
 @MainActor
 private struct UpdatesTile: View {
     let updater: Updater
@@ -465,6 +465,17 @@ private struct UpdatesTile: View {
                     .labelsHidden().toggleStyle(.switch).tint(Theme.green)
             }
             .padding(.vertical, 4)
+            Divider().opacity(0.5)
+            HStack {
+                TileHeading(title: "Install updates automatically",
+                            subtitle: "A new version is downloaded and checked in the background, then swapped in when you quit OpusBar.")
+                Spacer()
+                Toggle("Install updates automatically", isOn: $preferences.installUpdatesAutomatically)
+                    .labelsHidden().toggleStyle(.switch).tint(Theme.green)
+            }
+            .padding(.vertical, 4)
+            .disabled(!preferences.checkForUpdates)
+            .opacity(preferences.checkForUpdates ? 1 : 0.5)
         }
     }
 
@@ -474,6 +485,10 @@ private struct UpdatesTile: View {
         case .available:
             Button("Release Notes") { updater.openReleasePage() }
             Button("Update and Relaunch") { updater.install() }
+                .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
+        case .ready:
+            Button("Release Notes") { updater.openReleasePage() }
+            Button("Relaunch Now") { updater.install() }
                 .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
         case .checking, .installing:
             ProgressView().controlSize(.small)
@@ -488,6 +503,7 @@ private struct UpdatesTile: View {
     private var title: String {
         switch updater.state {
         case .available(let release): "OpusBar \(release.version) is available"
+        case .ready(let release): "OpusBar \(release.version) is ready"
         case .installing(let release): "Installing OpusBar \(release.version)…"
         case .checking: "Checking for updates…"
         case .upToDate: "OpusBar is up to date"
@@ -499,6 +515,7 @@ private struct UpdatesTile: View {
     private var subtitle: String? {
         switch updater.state {
         case .available: "Downloaded from GitHub and checked against OpusBar's signature before anything changes."
+        case .ready: "Installs the next time you quit OpusBar, or now if you relaunch."
         case .installing: "OpusBar quits and opens again when it's done."
         case .upToDate(let date): "Checked \(date.formatted(date: .omitted, time: .shortened))."
         case .failed(let reason): reason

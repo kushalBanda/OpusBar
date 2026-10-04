@@ -155,5 +155,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         server?.stop()
+        updater?.applyOnQuit()
     }
 }

@@ -32,6 +32,8 @@ public struct UpdateRelease: Equatable, Sendable {
     public var zip: URL
     public var signature: URL
     public var page: URL
+    /// The release description (GitHub markdown); the changelog section for this version.
+    public var notes: String = ""
 }
 
 /// Where updates come from: the latest GitHub release of the OpusBar repository (ADR 23). Builds aren't
@@ -60,7 +62,7 @@ public enum UpdateFeed {
         }
         let name = "OpusBar-\(version).zip"
         guard let zip = asset(name), let signature = asset(name + ".sig") else { return nil }
-        return UpdateRelease(version: version, zip: zip, signature: signature, page: page)
+        return UpdateRelease(version: version, zip: zip, signature: signature, page: page, notes: json["body"] as? String ?? "")
     }
 
     /// A newer release than `current`, or nil.
