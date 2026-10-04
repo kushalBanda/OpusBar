@@ -48,7 +48,7 @@ A badge on the cat counts the sessions waiting for you, or marks one that finish
   <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: Claude Code and Codex plan limits with time to reset, then 24 hours of API value as a bar chart split by agent, with the top models and projects">
 </p>
 
-<p align="center"><sub>The menu: every session, and your limits and spend one tab over. Shown with sample data.</sub></p>
+<p align="center"><sub>The menu: every session, and your limits and spend one tab over. Sessions are sample data. The Usage tab is real use, with the account names changed.</sub></p>
 
 ## What it does
 
