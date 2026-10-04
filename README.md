@@ -6,7 +6,7 @@
 
 **A cat in your menu bar that watches your coding agents.**
 
-Every Claude Code and Codex session at a glance. Know the second one needs you, and see how much of your plan is left.
+OpusBar is a free, open-source macOS menu bar app for Claude Code and Codex sessions. Every session at a glance. Know the second one needs you, and see how much of your plan is left.
 
 [**Install OpusBar**](#install) · [Website](https://kushalbanda.com/opusbar/)
 
