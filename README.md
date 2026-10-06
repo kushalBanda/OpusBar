@@ -14,7 +14,7 @@ Free and open source · macOS 14 or later · Apple silicon and Intel
 
 <br>
 
-https://github.com/user-attachments/assets/e6d5e839-8786-4419-8ba4-bc8e238dcb06
+https://github.com/user-attachments/assets/ecda9d51-1b1f-404a-af8e-831d05b4d2ab
 
 <br><br>
 
