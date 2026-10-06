@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.4
+
+- Fixed a crash when opening the menu.
+- Collapsing a session card fades its details out before the card shrinks, as expanding does.
+
 ## 0.1.3
 
 - OpusBar asks for notification permission at launch and when you turn a notification on, so a missed prompt no longer swallows the first notice.
