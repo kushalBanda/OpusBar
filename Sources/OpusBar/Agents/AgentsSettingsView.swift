@@ -192,10 +192,9 @@ private struct HookHealthLine: View {
 
     private func text(now: Date) -> String {
         guard let activity else {
-            let restart = "Sessions started before connecting stay without live states until restarted."
             switch agent {
             case .codex: return "No events since OpusBar started. New Codex sessions report once you approve the hooks in Codex with /hooks."
-            case .claude: return "No events since OpusBar started. \(restart)"
+            case .claude: return "No events since OpusBar started. Running sessions usually report from their next prompt; restart one that stays quiet."
             }
         }
         let events = activity.count == 1 ? "1 event" : "\(activity.count) events"

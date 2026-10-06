@@ -43,7 +43,21 @@ final class SessionNotifier: NSObject {
             UNUserNotificationCenter.current().removeDeliveredNotifications(withIdentifiers: sessions)
         }
         refreshAccess()
+        if preferences.anyNotificationOn { requestAccess() }
         observe()
+    }
+
+    /// Asks macOS now, not at the first notice: a prompt missed while a session runs (Focus, a hidden
+    /// banner) would silently drop that notice. Does nothing once the user has answered.
+    func requestAccess() {
+        guard let center else { return }
+        center.getNotificationSettings { settings in
+            guard settings.authorizationStatus == .notDetermined else { return }
+            center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+                if let error { NSLog("OpusBar: notification permission failed: \(error)") }
+                Task { @MainActor in self.access = granted ? .allowed : .denied }
+            }
+        }
     }
 
     func refreshAccess() {
@@ -74,7 +88,8 @@ final class SessionNotifier: NSObject {
         }
         let posts = isMenuShown() ? [] : plan.post
         guard !posts.isEmpty else { return }
-        center.requestAuthorization(options: [.alert, .sound]) { granted, _ in
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            if let error { NSLog("OpusBar: notification permission failed: \(error)") }
             Task { @MainActor in
                 self.access = granted ? .allowed : .denied
                 guard granted else { return }
@@ -93,7 +108,9 @@ final class SessionNotifier: NSObject {
         if let cat = NotificationCat.attachment(state: notice.state, coat: preferences.coat, poses: preferences.poses) {
             content.attachments = [cat]
         }
-        center.add(UNNotificationRequest(identifier: Self.identifier(notice.sessionId), content: content, trigger: nil))
+        center.add(UNNotificationRequest(identifier: Self.identifier(notice.sessionId), content: content, trigger: nil)) { error in
+            if let error { NSLog("OpusBar: notification post failed: \(error)") }
+        }
     }
 
     /// One identifier per session: a newer notification replaces the older one.
