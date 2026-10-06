@@ -14,6 +14,11 @@ struct SessionRowView: View {
     var agentConnected = false
     var onTap: () -> Void = {}
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Keeps the details in the layout while they fade out on collapse. The list measures its final
+    /// height at once, so removing them right away shrinks the card and cuts the fade off.
+    @State private var detailsLeaving = false
+
     /// Charcoal text on brand fills (AA on yellow and red).
     private static let onColor = Color(red: 0.173, green: 0.18, blue: 0.165)
     private static let tileLight = Color(red: 1.0, green: 0.992, blue: 0.969)
@@ -23,10 +28,16 @@ struct SessionRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             summary
-            if isExpanded {
+            if isExpanded || detailsLeaving {
                 SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
+                    .opacity(isExpanded ? 1 : 0)
                     .transition(.opacity)
             }
+        }
+        .onChange(of: isExpanded) { _, expanded in
+            guard !expanded, !reduceMotion else { return }
+            detailsLeaving = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { detailsLeaving = false }
         }
         .foregroundStyle(isLoud ? AnyShapeStyle(Self.onColor) : AnyShapeStyle(.primary))
         .padding(10)
