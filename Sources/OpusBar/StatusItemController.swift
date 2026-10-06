@@ -232,6 +232,7 @@ final class StatusItemController: NSObject {
             statusItem.button?.performClick(nil) // returns when the menu closes
         } else {
             menuWillOpen(menu)
+            menuDidOpen()
             menuDidClose(menu)
         }
         if (total - left + 1) % 100 == 0 { NSLog("OpusBar stress: %d", total - left + 1) }
@@ -251,6 +252,14 @@ final class StatusItemController: NSObject {
 extension StatusItemController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         isMenuShown = true
+        // Measuring SwiftUI while the menu is being built crashed. Common modes run during menu tracking.
+        RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            MainActor.assumeIsolated { self?.menuDidOpen() }
+        }
+    }
+
+    private func menuDidOpen() {
+        guard isMenuShown else { return }
         if let screen = statusItem.button?.window?.screen ?? NSScreen.main, layout.screenHeight != screen.visibleFrame.height {
             layout.screenHeight = screen.visibleFrame.height
         }
@@ -261,11 +270,8 @@ extension StatusItemController: NSMenuDelegate {
             layout.screenHeight = height
         }
         #endif
-        // Measure before anything changes, and don't ask the menu to relayout while it is being built:
-        // every crash report (SIGSEGV in AttributeGraph) was a synchronous measure here right after
-        // `onOpen` had changed observed state. What `onOpen` changes arrives through the queued refit.
-        content.fit(tellMenu: false)
         onOpen()
+        content.fit()
     }
 
     func menuDidClose(_ menu: NSMenu) {
@@ -301,8 +307,7 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         }
     }
 
-    /// `tellMenu: false` while the menu is being built (`menuWillOpen`): it reads the height itself then.
-    func fit(tellMenu: Bool = true) {
+    func fit() {
         measuring = true
         defer { measuring = false }
         // Measure the content itself, not the height last reported.
@@ -320,7 +325,7 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         // upward past the top (clipped) or shrinks leaving a gap above. Telling the menu the item
         // changed makes it lay out the window again from the top.
         if let item = enclosingMenuItem, let menu = item.menu {
-            if tellMenu { menu.itemChanged(item) }
+            menu.itemChanged(item)
         } else {
             superview?.layoutSubtreeIfNeeded()
         }
