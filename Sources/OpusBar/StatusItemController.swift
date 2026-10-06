@@ -223,7 +223,11 @@ final class StatusItemController: NSObject {
     private func stress(real: Bool, left: Int, total: Int) {
         guard left > 0 else { NSLog("OpusBar stress finished: %d", total); return }
         if real {
-            let close = Timer(timeInterval: 0.25, repeats: false) { _ in Task { @MainActor [weak self] in self?.menu.cancelTracking() } }
+            // A Task would wait for the main queue, which the menu's tracking loop doesn't drain:
+            // the menu stayed open and the stress run stalled. A run loop timer fires during tracking.
+            let close = Timer(timeInterval: 0.25, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated { self?.menu.cancelTracking() }
+            }
             RunLoop.main.add(close, forMode: .common)
             statusItem.button?.performClick(nil) // returns when the menu closes
         } else {
