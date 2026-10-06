@@ -252,11 +252,7 @@ final class StatusItemController: NSObject {
 extension StatusItemController: NSMenuDelegate {
     func menuWillOpen(_ menu: NSMenu) {
         isMenuShown = true
-        // Don't touch SwiftUI while the menu is being built. Every crash report (SIGSEGV in AttributeGraph,
-        // or an objc_initWeak abort) was a synchronous measure here, also with `onOpen` moved after it.
-        // The menu opens at the last measured height; one run loop turn later the view is in the menu's
-        // window, and the refit resizes the open menu if anything changed. Common modes, so the block
-        // runs during menu tracking.
+        // Measuring SwiftUI while the menu is being built crashed. Common modes run during menu tracking.
         RunLoop.main.perform(inModes: [.common]) { [weak self] in
             MainActor.assumeIsolated { self?.menuDidOpen() }
         }
