@@ -124,6 +124,11 @@ public final class Preferences {
             pace: defaults.string(forKey: Key.barPace).flatMap(CatPace.init) ?? .normal)
     }
 
+    /// Any switch in Settings > Notifications is on.
+    public var anyNotificationOn: Bool {
+        notifyNeedsYou || notifyError || notifyDone || notifyLimitReset || notifyLimitWarning
+    }
+
     public var notificationRules: NotificationRules {
         NotificationRules(needsYou: notifyNeedsYou, error: notifyError, done: notifyDone)
     }

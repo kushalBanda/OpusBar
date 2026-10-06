@@ -319,6 +319,7 @@ struct NotificationsPane: View {
             accessNote.padding(.top, 12)
         }
         .onAppear { notifier.refreshAccess() }
+        .onChange(of: preferences.anyNotificationOn) { _, on in if on { notifier.requestAccess() } }
     }
 
     /// Plan limits: a switch for resets and one for warnings, then one per account for both, each on until turned off.

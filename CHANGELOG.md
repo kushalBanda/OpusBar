@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.3
+
+- OpusBar asks for notification permission at launch and when you turn a notification on, so a missed prompt no longer swallows the first notice.
+- Failed notification permission requests and posts are logged.
+- The Agents pane no longer says running Claude sessions need a restart: they pick up the hooks from their next prompt.
+
 ## 0.1.2
 
 - Updates now install themselves: OpusBar downloads and checks a new version in the background and swaps it in when you quit. Turn it off in Settings.
