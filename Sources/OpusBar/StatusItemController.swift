@@ -1,6 +1,5 @@
 import AppKit
 import OpusBarCore
-import OpusBarWire
 import SwiftUI
 
 /// Menu bar item: the pixel cat for the loudest session state, plus a badge.
@@ -223,9 +222,6 @@ final class StatusItemController: NSObject {
     #if DEBUG
     private func stress(real: Bool, left: Int, total: Int) {
         guard left > 0 else { NSLog("OpusBar stress finished: %d", total); return }
-        let n = total - left + 1
-        // Change sessions while the menu is closed, as live hook events do between real opens.
-        if ProcessInfo.processInfo.arguments.contains("--stress-churn") { churn(n) }
         if real {
             // A Task would wait for the main queue, which the menu's tracking loop doesn't drain:
             // the menu stayed open and the stress run stalled. A run loop timer fires during tracking.
@@ -238,22 +234,9 @@ final class StatusItemController: NSObject {
             menuWillOpen(menu)
             menuDidClose(menu)
         }
-        if n % 50 == 0 { NSLog("OpusBar stress: %d", n) }
+        if (total - left + 1) % 100 == 0 { NSLog("OpusBar stress: %d", total - left + 1) }
         DispatchQueue.main.asyncAfter(deadline: .now() + (real ? 0.1 : 0.01)) { [weak self] in
             self?.stress(real: real, left: left - 1, total: total)
-        }
-    }
-
-    /// A few fake sessions that start, work, ask, finish and end in turn, so cards come, go and change.
-    private func churn(_ n: Int) {
-        let steps: [HookEventName] = [.sessionStart, .userPromptSubmit, .preToolUse, .permissionRequest,
-                                      .postToolUse, .stop, .sessionEnd]
-        let pid = ProcessInfo.processInfo.processIdentifier
-        for s in 0..<4 {
-            let event = steps[(n + s * 2) % steps.count]
-            store.apply(WireEvent(ts: Int64(Date().timeIntervalSince1970 * 1000), pid: pid,
-                                  e: SlimEvent(sessionId: "stress-\(s)", event: event, cwd: "/tmp/stress-\(s)",
-                                               toolName: event == .preToolUse ? "Bash" : nil)))
         }
     }
     #endif
