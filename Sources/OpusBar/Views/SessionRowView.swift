@@ -207,13 +207,27 @@ private struct UsageMetrics: View {
     let secondary: AnyShapeStyle
 
     var body: some View {
-        // Wide gaps between figures, tight glyph-to-figure pairs: each pair reads as one unit.
-        HStack(spacing: 14) {
+        // Never wider than the text column: a fixed-width row pushed every card past the menu's edge.
+        // Roomy gaps when they fit, tighter ones for long figures, then cache reads drop out.
+        ViewThatFits(in: .horizontal) {
+            row(gap: 12, showsCache: true)
+            row(gap: 8, showsCache: true)
+            row(gap: 8, showsCache: false)
+        }
+        .lineLimit(1)
+        .foregroundStyle(secondary)
+    }
+
+    private func row(gap: CGFloat, showsCache: Bool) -> some View {
+        // Tight glyph-to-figure pairs, wider gaps between them: each pair reads as one unit.
+        HStack(spacing: gap) {
             metric(Image(systemName: "arrow.up"), UsageFormat.tokens(newInput), "New input tokens",
                    help: "New input: \(Self.exact(total.tokens.input)) fresh + \(Self.exact(total.tokens.cacheWrite)) written to cache. Prompts and tool results.")
             metric(Image(systemName: "arrow.down"), UsageFormat.tokens(total.tokens.output), "Output tokens")
-            metric(CacheGlyph(), UsageFormat.tokens(total.tokens.cacheRead), "Cache read tokens",
-                   help: "Cache read: the conversation so far, re-read from cache with each reply.")
+            if showsCache {
+                metric(CacheGlyph(), UsageFormat.tokens(total.tokens.cacheRead), "Cache read tokens",
+                       help: "Cache read: the conversation so far, re-read from cache with each reply.")
+            }
             // The dollar sign is the glyph; a "+" says some replies had no known price.
             Text(UsageFormat.cost(total.cost) + (total.unpriced > 0 ? "+" : ""))
                 .font(Theme.font(10, .semibold).monospacedDigit())
@@ -222,9 +236,7 @@ private struct UsageMetrics: View {
                       : "Cost at API prices, subagents included.")
                 .accessibilityLabel("Cost \(UsageFormat.cost(total.cost))")
         }
-        .lineLimit(1)
         .fixedSize()
-        .foregroundStyle(secondary)
     }
 
     private var newInput: Int { total.tokens.input + total.tokens.cacheWrite }
@@ -300,7 +312,7 @@ private struct SubagentList: View {
     }
 }
 
-/// The mode the session runs in, when it isn't Manual: symbol and name in a soft capsule beside the agent.
+/// The mode the session runs in, when it isn't Manual: symbol and name, outlined like the agent label beside it.
 /// Bypass gets a red symbol on calm tiles, since nothing asks before it acts.
 struct ModeMark: View {
     let mode: PermissionMode
@@ -316,8 +328,8 @@ struct ModeMark: View {
         .fixedSize()
         .padding(.horizontal, 5)
         .padding(.vertical, 1)
-        .background(Capsule().fill(Color.primary.opacity(onLoudTile ? 0.12 : 0.08)))
-        .opacity(0.85)
+        .overlay(Capsule().strokeBorder(lineWidth: 1).opacity(0.35))
+        .opacity(0.8)
         .help(help)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Mode: \(mode.label)")

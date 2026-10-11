@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.6
+
+- Session cards fit the menu again: the tokens row no longer pushes cards and the update note past its right edge. Long figures tighten their spacing, then drop cache reads.
+- The mode badge is outlined like the agent label beside it.
+
 ## 0.1.5
 
 - Notifications when a session finishes are on by default.
