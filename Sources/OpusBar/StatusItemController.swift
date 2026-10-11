@@ -44,7 +44,7 @@ final class StatusItemController: NSObject {
                                                            openSettings: { [weak self] pane in
             self?.menu.cancelTracking()
             self?.settings.show(pane)
-        }))
+        }, onHeightChange: { [weak self] in self?.content.contentChanged() }))
         content.fit()
         let item = NSMenuItem()
         item.view = content
@@ -272,7 +272,45 @@ extension StatusItemController: NSMenuDelegate {
         #endif
         onOpen()
         content.fit()
+        #if DEBUG
+        // `--trace <dir>` samples the open menu for 8 s: window and row heights each tick to heights.csv,
+        // and with `--trace-frames <from> <to>` the rendered content each tick in that span (s), to check card animations frame by frame.
+        if let i = args.firstIndex(of: "--trace"), i + 1 < args.count { trace(to: args[i + 1]) }
+        #endif
     }
+
+    #if DEBUG
+    private func trace(to directory: String) {
+        let start = CACurrentMediaTime()
+        var csv = "t,window,row\n"
+        var tick = 0
+        let args = ProcessInfo.processInfo.arguments
+        let span: ClosedRange<Double>? = args.firstIndex(of: "--trace-frames").flatMap { i in
+            guard i + 2 < args.count, let from = Double(args[i + 1]), let to = Double(args[i + 2]) else { return nil }
+            return from...to
+        }
+        let timer = Timer(timeInterval: 1.0 / 120, repeats: true) { [weak self] timer in
+            MainActor.assumeIsolated {
+                guard let self, let window = self.content.window else { return }
+                let t = CACurrentMediaTime()
+                csv += String(format: "%.4f,%.1f,%.1f\n", t, window.frame.height, self.content.frame.height)
+                if let span, span.contains(t - start), let rep = self.content.bitmapImageRepForCachingDisplay(in: self.content.bounds) {
+                    self.content.cacheDisplay(in: self.content.bounds, to: rep)
+                    try? rep.representation(using: .png, properties: [:])?
+                        .write(to: URL(fileURLWithPath: directory).appending(path: String(format: "f%04d-%.3f.png", tick, t)))
+                }
+                tick += 1
+                if t - start > 8 {
+                    timer.invalidate()
+                    try? csv.write(toFile: directory + "/heights.csv", atomically: true, encoding: .utf8)
+                    NSLog("OpusBar trace written")
+                    self.menu.cancelTracking()
+                }
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+    }
+    #endif
 
     func menuDidClose(_ menu: NSMenu) {
         isMenuShown = false
@@ -292,9 +330,9 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
     /// A refit is already queued: further invalidations join it.
     private var fitQueued = false
     /// A smaller height waiting for the content's collapse to finish.
-    private var pendingShrink: DispatchWorkItem?
-    /// About when a critically damped 0.32 s spring has settled.
-    static var shrinkDelay: TimeInterval { 0.45 }
+    private var pendingShrink: Timer?
+    /// When the list's critically damped 0.32 s spring is 98% of the way there.
+    static var shrinkDelay: TimeInterval { 0.3 }
 
     override var intrinsicContentSize: NSSize {
         guard let rowHeight else { return super.intrinsicContentSize }
@@ -303,11 +341,22 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
 
     override func invalidateIntrinsicContentSize() {
         super.invalidateIntrinsicContentSize()
-        guard !measuring, !fitQueued else { return }
+        guard !measuring else { return }
+        contentChanged()
+    }
+
+    /// Queues a refit. The content calls this itself when its height changes: while the menu is open the
+    /// hosting view doesn't invalidate its size for a SwiftUI change, so the menu kept its old height
+    /// until something else woke it. A run loop block, not the main queue, which an open menu's tracking
+    /// loop doesn't drain.
+    func contentChanged() {
+        guard !fitQueued else { return }
         fitQueued = true
-        DispatchQueue.main.async { [weak self] in
-            self?.fitQueued = false
-            self?.fit(holdingShrink: true)
+        RunLoop.main.perform(inModes: [.common]) { [weak self] in
+            MainActor.assumeIsolated {
+                self?.fitQueued = false
+                self?.fit(holdingShrink: true)
+            }
         }
     }
 
@@ -323,16 +372,18 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         let size = fittingSize
         let height = ceil(size.height)
         guard size.width > 0, height > 0 else { rowHeight = reported; return }
-        pendingShrink?.cancel()
+        pendingShrink?.invalidate()
         pendingShrink = nil
         if holdingShrink, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let reported, height < reported {
             rowHeight = reported
-            let shrink = DispatchWorkItem { [weak self] in
-                self?.pendingShrink = nil
-                self?.fit()
+            let shrink = Timer(timeInterval: Self.shrinkDelay, repeats: false) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.pendingShrink = nil
+                    self?.fit()
+                }
             }
             pendingShrink = shrink
-            DispatchQueue.main.asyncAfter(deadline: .now() + Self.shrinkDelay, execute: shrink)
+            RunLoop.main.add(shrink, forMode: .common)
             return
         }
         rowHeight = height
