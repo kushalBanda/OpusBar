@@ -291,6 +291,10 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
     private var measuring = false
     /// A refit is already queued: further invalidations join it.
     private var fitQueued = false
+    /// A smaller height waiting for the content's collapse to finish.
+    private var pendingShrink: DispatchWorkItem?
+    /// About when a critically damped 0.32 s spring has settled.
+    static var shrinkDelay: TimeInterval { 0.45 }
 
     override var intrinsicContentSize: NSSize {
         guard let rowHeight else { return super.intrinsicContentSize }
@@ -303,11 +307,14 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         fitQueued = true
         DispatchQueue.main.async { [weak self] in
             self?.fitQueued = false
-            self?.fit()
+            self?.fit(holdingShrink: true)
         }
     }
 
-    func fit() {
+    /// `holdingShrink`: content changes animate, and the menu window resizes at once. Growing at once gives
+    /// the animation room; shrinking at once would cut it off (the footer jumps up over closing cards), so a
+    /// smaller height waits until the animation has settled. Reduce Motion has no animation to wait for.
+    func fit(holdingShrink: Bool = false) {
         measuring = true
         defer { measuring = false }
         // Measure the content itself, not the height last reported.
@@ -316,6 +323,18 @@ final class MenuHostingView<Content: View>: NSHostingView<Content> {
         let size = fittingSize
         let height = ceil(size.height)
         guard size.width > 0, height > 0 else { rowHeight = reported; return }
+        pendingShrink?.cancel()
+        pendingShrink = nil
+        if holdingShrink, !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion, let reported, height < reported {
+            rowHeight = reported
+            let shrink = DispatchWorkItem { [weak self] in
+                self?.pendingShrink = nil
+                self?.fit()
+            }
+            pendingShrink = shrink
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.shrinkDelay, execute: shrink)
+            return
+        }
         rowHeight = height
         guard reported != height || frame.size != NSSize(width: size.width, height: height) else { return }
         setFrameSize(NSSize(width: size.width, height: height))

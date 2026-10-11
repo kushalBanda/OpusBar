@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Opening and closing a session card is smooth: the details fade in and out with the card, the list follows in the same spring, and the menu no longer cuts a closing card off or shifts the list.
+
 ## 0.1.6
 
 - Session cards fit the menu again: the tokens row no longer pushes cards and the update note past its right edge. Long figures tighten their spacing, then drop cache reads.

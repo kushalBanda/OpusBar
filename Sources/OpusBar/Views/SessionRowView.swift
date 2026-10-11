@@ -17,9 +17,6 @@ struct SessionRowView: View {
     var onTap: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// Keeps the details in the layout while they fade out on collapse. The list measures its final
-    /// height at once, so removing them right away shrinks the card and cuts the fade off.
-    @State private var detailsLeaving = false
 
     /// Charcoal text on brand fills (AA on yellow and red).
     private static let onColor = Color(red: 0.173, green: 0.18, blue: 0.165)
@@ -35,18 +32,13 @@ struct SessionRowView: View {
                              usage: usage?.bySubagent ?? [:])
                     .transition(.opacity)
             }
-            if isExpanded || detailsLeaving {
+            // Opens and closes in the tap's spring; the menu holds its height until a collapse settles.
+            if isExpanded {
                 SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
-                    .opacity(isExpanded ? 1 : 0)
                     .transition(.opacity)
             }
         }
         .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: session.subagents.map(\.id))
-        .onChange(of: isExpanded) { _, expanded in
-            guard !expanded, !reduceMotion else { return }
-            detailsLeaving = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { detailsLeaving = false }
-        }
         .foregroundStyle(isLoud ? AnyShapeStyle(Self.onColor) : AnyShapeStyle(.primary))
         .padding(10)
         .background(RoundedRectangle(cornerRadius: 16).fill(isLoud ? session.state.tileColor : Color.primary.opacity(isExpanded ? 0.08 : 0.05)))

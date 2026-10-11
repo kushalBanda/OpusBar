@@ -86,6 +86,9 @@ struct SessionListView: View {
         }
         .padding(10)
         .frame(width: 344, alignment: .leading)
+        // Pinned to the top: while the menu is taller than the content (a collapse settling), the slack
+        // sits below the footer instead of splitting above and below and shifting the list.
+        .frame(maxHeight: .infinity, alignment: .top)
         #if DEBUG
         // `--expand-later` opens the `--expand` card 2 s after the list appears, like a click would.
         .onAppear {
@@ -166,8 +169,15 @@ struct SessionListView: View {
         .animation(reduceMotion ? nil : Self.spring, value: orderKey)
     }
 
+    /// The geometry reports the final height as a card starts to open or close; following it in the same
+    /// spring keeps the list's frame in step with the cards instead of jumping ahead of them.
     private func updateHeight(_ height: CGFloat) {
-        if abs(height - contentHeight) > 0.5 { contentHeight = height }
+        guard abs(height - contentHeight) > 0.5 else { return }
+        if contentHeight == 0 || reduceMotion {
+            contentHeight = height
+        } else {
+            withAnimation(Self.spring) { contentHeight = height }
+        }
     }
 
     /// Compact card about 58 pt, header about 26 pt, 6 pt spacing.
