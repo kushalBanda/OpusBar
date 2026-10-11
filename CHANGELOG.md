@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- The menu resizes as soon as you open or close a session card. It used to keep its old height while open, so cards were cut off or left a gap until something else woke OpusBar.
+
 ## 0.1.7
 
 - Opening and closing a session card is smooth: the details fade in and out with the card, the list follows in the same spring, and the menu no longer cuts a closing card off or shifts the list.

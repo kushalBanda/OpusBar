@@ -12,6 +12,8 @@ struct SessionListView: View {
     let updater: Updater
     let layout: PopoverLayout
     var openSettings: (SettingsPane?) -> Void = { _ in }
+    /// The content's height changed: the menu hosting it refits.
+    var onHeightChange: () -> Void = {}
     /// One card open at a time; the others stay compact.
     @State private var expandedId: String? = {
         #if DEBUG
@@ -86,6 +88,11 @@ struct SessionListView: View {
         }
         .padding(10)
         .frame(width: 344, alignment: .leading)
+        // Reports the height the menu should take; the layout settles at the new height at once, while
+        // the change is still animating on screen.
+        .background(GeometryReader { proxy in
+            Color.clear.onChange(of: proxy.size.height) { onHeightChange() }
+        })
         // Pinned to the top: while the menu is taller than the content (a collapse settling), the slack
         // sits below the footer instead of splitting above and below and shifting the list.
         .frame(maxHeight: .infinity, alignment: .top)
@@ -94,14 +101,19 @@ struct SessionListView: View {
         .onAppear {
             let args = ProcessInfo.processInfo.arguments
             guard args.contains("--expand-later"), let i = args.firstIndex(of: "--expand"), i + 1 < args.count else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                withAnimation(reduceMotion ? nil : Self.spring) { expandedId = args[i + 1] }
+            // Run loop timers: the menu's tracking loop doesn't drain the main queue.
+            func after(_ delay: TimeInterval, _ change: @escaping () -> Void) {
+                RunLoop.main.add(Timer(timeInterval: delay, repeats: false) { _ in
+                    MainActor.assumeIsolated {
+                        NSLog("OpusBar trace toggle %.3f", CACurrentMediaTime())
+                        withAnimation(reduceMotion ? nil : Self.spring, change)
+                    }
+                }, forMode: .common)
             }
+            after(2) { expandedId = args[i + 1] }
             // `--collapse-later` closes it again 3 s later, to check the menu shrinks back.
             guard args.contains("--collapse-later") else { return }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5) {
-                withAnimation(reduceMotion ? nil : Self.spring) { expandedId = nil }
-            }
+            after(5) { expandedId = nil }
         }
         #endif
         .font(Theme.font(13))
