@@ -24,20 +24,24 @@ struct AgentLogo: View {
     }
 }
 
-/// How a session pays, as a small mark: the cloud's own colored logo for Bedrock, Vertex AI and Foundry; a
-/// symbol in the text color for a plan, API billing and a custom endpoint.
+/// How a session pays, as a small rounded tile like an app icon: the cloud's own logo for Bedrock, Vertex AI and
+/// Foundry; a white symbol on a grey tile for a plan, API billing and a custom endpoint.
 struct BillingLogo: View {
     let billing: SignInMethod
     var size: CGFloat = 10
+
+    static func cornerRadius(_ size: CGFloat) -> CGFloat { size * 0.24 }
 
     var body: some View {
         if let image = LogoImages.shared.image(named: billing.rawValue, in: "BillingLogos") {
             Image(nsImage: image).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
         } else {
             Image(systemName: Self.symbol(for: billing))
-                .font(.system(size: size * 0.8, weight: .bold))
+                .font(.system(size: size * 0.58, weight: .bold))
+                .foregroundStyle(.white)
                 .frame(width: size, height: size)
-                .opacity(0.85)
+                .background(RoundedRectangle(cornerRadius: Self.cornerRadius(size), style: .continuous)
+                    .fill(Color(white: 0.45)))
         }
     }
 
@@ -51,27 +55,26 @@ struct BillingLogo: View {
     }
 }
 
-/// Who runs a session, large, with how it pays as a badge in its lower corner, like an app icon's badge.
-/// The agent's logo is cut away around the badge so the two never touch, on any tile color.
+/// Who runs a session, in its brand color, with how it pays as a badge in its lower corner, like an app icon's badge.
+/// The agent's logo is cut away around the badge tile so the two never touch, on any background.
 struct AgentMark: View {
     let agent: AgentKind
     var billing: SignInMethod?
-    var size: CGFloat = 18
-    /// Charcoal agent logo on a yellow or red tile, where its series color would fade.
-    var tint: Color?
+    /// One size everywhere (menu, Usage tab, Settings), so a profile reads the same in each.
+    var size: CGFloat = 20
 
-    private var badge: CGFloat { (size * 0.62).rounded() }
-    /// How far the badge hangs past the logo's corner.
+    private var badge: CGFloat { (size * 0.5).rounded() }
+    /// How far the badge hangs past the logo's corner: half of it, like an app icon's badge.
     private var overhang: CGFloat { (size * 0.25).rounded() }
     private static let gap: CGFloat = 1.5
 
     var body: some View {
-        AgentLogo(agent: agent, size: size, tint: tint)
+        AgentLogo(agent: agent, size: size)
             .mask {
                 if billing != nil {
                     Rectangle()
                         .overlay(alignment: .bottomTrailing) {
-                            Circle()
+                            RoundedRectangle(cornerRadius: BillingLogo.cornerRadius(badge) + Self.gap, style: .continuous)
                                 .frame(width: badge + Self.gap * 2, height: badge + Self.gap * 2)
                                 .offset(x: overhang + Self.gap, y: overhang + Self.gap)
                                 .blendMode(.destinationOut)

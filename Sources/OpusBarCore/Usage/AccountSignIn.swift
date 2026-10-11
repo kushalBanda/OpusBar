@@ -35,6 +35,12 @@ public struct AccountSignIn: Equatable, Sendable, Identifiable {
         return result
     }
 
+    /// The sign-in of one profile or home folder, any spelling of its path.
+    public static func find(agent: AgentKind, root: String, in accounts: [AccountSignIn]) -> AccountSignIn? {
+        let canonical = UsageLogReader.canonical(root)
+        return accounts.first { $0.agent == agent && $0.root == canonical }
+    }
+
     /// How a session pays: what its own environment reported, else its profile's or home's sign-in.
     public static func billing(of session: Session, accounts: [AccountSignIn]) -> SignInMethod? {
         if let signIn = session.signIn { return signIn }

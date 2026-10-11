@@ -26,11 +26,16 @@ struct CatView: View {
     @ViewBuilder
     private func frame(_ animation: CatAnimation, index: Int) -> some View {
         let f = animation.frames[index % animation.frames.count]
-        if let image = CatSheet.sheet(for: coat).frame(col: f.col, row: f.row) {
+        let sheet = CatSheet.sheet(for: coat)
+        if let image = sheet.frame(col: f.col, row: f.row) {
+            // Whole frame pixels only, so the pixel art stays on the pixel grid.
+            let offset = sheet.centerOffset(frames: animation.frames.map { ($0.col, $0.row) })
+            let pixel = points / CGFloat(CatSheet.framePixels)
             Image(decorative: image, scale: CGFloat(CatSheet.framePixels) / points)
                 // Nearest neighbour keeps pixels crisp at 1:1 and up. Below that (16 pt on a 1x display)
                 // it drops whole rows and columns, so the cat is scaled smoothly instead.
                 .interpolation(points * displayScale < CGFloat(CatSheet.framePixels) ? .high : .none)
+                .offset(x: -offset.x.rounded() * pixel, y: -offset.y.rounded() * pixel)
                 .frame(width: points, height: points)
         } else {
             Color.clear.frame(width: points, height: points)
