@@ -72,7 +72,7 @@ struct SessionListView: View {
                     }
                 }
                 page(.usage) {
-                    UsageDropdownView(usage: usage, maxHeight: maxListHeight)
+                    UsageDropdownView(usage: usage, sessions: store.sessions, maxHeight: maxListHeight)
                 }
             }
             .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: tab)

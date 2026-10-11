@@ -143,6 +143,7 @@ private struct SessionDetails: View {
                 if let branch = session.branch { row("Branch", branch) }
                 if let title = session.title { row("Session", title) }
                 if let mode = session.permissionMode { row("Mode", mode.label) }
+                if let signIn = session.signIn, !signIn.hasPlanLimits { row("Billing", signIn.label) }
                 if let place = session.host?.label ?? session.term?.termProgram.map(Self.terminalName) { row("Where", place) }
                 row("Started", "\(ElapsedFormat.short(from: session.startedAt, to: now)) ago")
                 row("Last activity", "\(ElapsedFormat.short(from: session.lastEventAt, to: now)) ago")

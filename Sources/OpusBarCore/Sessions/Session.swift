@@ -26,6 +26,8 @@ public struct Session: Identifiable, Equatable, Sendable {
     public var detail: String?
     /// Last mode the hooks reported; nil until an event carries one (and for discovered rows).
     public var permissionMode: PermissionMode?
+    /// How the agent is signed in, from its environment via the hook; nil when that leaves it to the profile.
+    public var signIn: SignInMethod?
     /// Live subagents, oldest first.
     public var subagents: [Subagent]
     /// Claude's transcript, from hook events; where subagents' `meta.json` files live.

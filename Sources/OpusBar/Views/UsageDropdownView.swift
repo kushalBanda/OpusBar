@@ -20,6 +20,7 @@ enum DropdownTab: String, CaseIterable {
 @MainActor
 struct UsageDropdownView: View {
     let usage: UsageModel
+    let sessions: [Session]
     let maxHeight: CGFloat
     @State private var range: UsageRange = .day
 
@@ -34,7 +35,8 @@ struct UsageDropdownView: View {
 
     private func content(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            if usage.limits.isEmpty {
+            let perUse = AccountSignIn.merging(usage.signIns, sessions: sessions).filter { !$0.method.hasPlanLimits }
+            if usage.limits.isEmpty && perUse.isEmpty {
                 UsageCard {
                     CardHeader(title: "Plan limits", symbol: "gauge.with.dots.needle.33percent")
                     Text("None yet. Claude Code saves each account's limits when it checks them; Codex writes its own as it works.")
@@ -44,6 +46,7 @@ struct UsageDropdownView: View {
             ForEach(usage.limits) { limits in
                 LimitsCard(limits: limits, showsAccount: usage.limits.filter { $0.agent == limits.agent }.count > 1, now: now)
             }
+            if !perUse.isEmpty { PerUseCard(accounts: perUse) }
             SegmentedPicker(options: UsageRange.allCases, selection: $range, size: 11) { $0.label }
                 .padding(.top, 4)
             if let summary = usage.summaries[range] {
@@ -110,6 +113,33 @@ extension CardHeader where Trailing == EmptyView {
 
 /// One account: its session and the longer window that binds first, each with what is left, a meter with
 /// the even-pace mark, and when it renews.
+/// Accounts billed per use (an API key, a gateway, a cloud provider): no plan, so no limits to wait for.
+private struct PerUseCard: View {
+    let accounts: [AccountSignIn]
+
+    var body: some View {
+        UsageCard {
+            CardHeader(title: "Billed per use", symbol: "creditcard")
+            ForEach(accounts) { account in
+                HStack(spacing: 6) {
+                    AgentLogo(agent: account.agent, size: 13)
+                    Text(account.agent.displayName).font(Theme.font(12, .semibold))
+                    if let label = account.label {
+                        Text(label.split(separator: "@").first.map(String.init) ?? label)
+                            .font(Theme.font(11, .regular)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+                            .help(label)
+                    }
+                    Spacer(minLength: 6)
+                    Text(account.method.label).font(Theme.font(11, .medium)).lineLimit(1)
+                }
+            }
+            Text("No plan limits. API value below is roughly what these accounts pay.")
+                .font(Theme.font(11, .regular)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
 private struct LimitsCard: View {
     let limits: UsageLimits
     let showsAccount: Bool

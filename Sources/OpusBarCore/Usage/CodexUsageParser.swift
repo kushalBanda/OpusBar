@@ -11,6 +11,9 @@ public enum CodexUsageParser {
         public var model = ""
         /// Fast tier (named "priority" before mid 2026) bills at a premium.
         public var fast = false
+        /// The session's model provider (`openai`, `ollama`, `amazon-bedrock`…) and when the session started.
+        public var provider: String?
+        public var providerAt: Date?
         /// The latest plan limits the file copied from the server, main allowance only.
         public var limits: UsageLimits?
         /// Newer rollouts write one `token_usage_record` per reply; older ones only running totals,
@@ -69,6 +72,10 @@ public enum CodexUsageParser {
         switch json["type"] as? String {
         case "session_meta":
             if let id = payload["id"] as? String, !id.isEmpty { state.session = id }
+            if let provider = payload["model_provider"] as? String, !provider.isEmpty {
+                state.provider = provider
+                state.providerAt = date
+            }
             if let cwd = payload["cwd"] as? String, !cwd.isEmpty { state.project = ClaudeUsageParser.projectFolder(cwd) }
         case "turn_context":
             if let model = payload["model"] as? String, !model.isEmpty { state.model = model }

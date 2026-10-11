@@ -52,6 +52,19 @@ public final class UsageStore {
         return newest.values.sorted { $0.account < $1.account }
     }
 
+    /// Each Codex home's model provider in its newest session, by home.
+    public var codexProviders: [String: String] {
+        var newest: [String: (provider: String, at: Date)] = [:]
+        for cursor in cursors.values where cursor.agent == .codex {
+            guard let provider = cursor.codex.provider else { continue }
+            let at = cursor.codex.providerAt ?? .distantPast
+            let home = UsageLogReader.canonical(accounts[cursor.path] ?? "")
+            if let known = newest[home], known.at >= at { continue }
+            newest[home] = (provider, at)
+        }
+        return newest.mapValues(\.provider)
+    }
+
     /// Finds log files changed within the history window and reads what each gained. Covers files the
     /// watcher missed (new roots, events dropped) and drops records past the window. `recent` limits the
     /// pass to files changed that recently: every reply of the last 24 hours is in a file changed within
