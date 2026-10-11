@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.11
+
+- Every session card shows who runs it and how it pays: the Claude or Codex logo under the timer, with a small badge in its corner. Amazon Bedrock, Google Vertex AI and Microsoft Foundry get their own colored logos; a plan, an API key and a custom endpoint get a simple symbol. Hover for the name.
+- A session started from a shell that sets Bedrock, Vertex AI or an API key now says so on its card, not only in the Usage tab.
+- The project name gets the whole line, so long names show in full. The mode badge moved to the status line.
+- Billed-per-use rows in the Usage tab use the same badged logo.
+
 ## 0.1.10
 
 - A profile that runs on Amazon Bedrock, Vertex AI, Foundry or an API key only because your shell says so keeps its "Billed per use" row after its sessions end, and after OpusBar restarts. A plain session in that profile hands it back to its files.

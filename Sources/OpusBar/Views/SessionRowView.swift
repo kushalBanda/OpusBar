@@ -14,6 +14,8 @@ struct SessionRowView: View {
     var agentConnected = false
     /// Tokens and cost logged under this session so far, subagents included; nil until the logs are read.
     var usage: SessionUsage?
+    /// How the session pays (`AccountSignIn.billing`), badged on the agent's logo; nil shows the logo alone.
+    var billing: SignInMethod?
     var onTap: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -34,7 +36,7 @@ struct SessionRowView: View {
             }
             // Opens and closes in the tap's spring; the menu holds its height until a collapse settles.
             if isExpanded {
-                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
+                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected, billing: billing)
                     .transition(.opacity)
             }
         }
@@ -57,28 +59,35 @@ struct SessionRowView: View {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(session.projectName).font(Theme.font(13, .semibold)).lineLimit(1).layoutPriority(1)
-                    AgentMark(agent: session.agent)
-                    if let mode = session.permissionMode, !mode.isDefault {
-                        ModeMark(mode: mode, onLoudTile: isLoud)
-                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.85, anchor: .leading)))
-                    }
                     if showsBranch, let branch = session.branch {
                         Text(branch).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1).truncationMode(.middle)
                     }
                 }
-                Text(detailLine).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(detailLine).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1)
+                    if let mode = session.permissionMode, !mode.isDefault {
+                        ModeMark(mode: mode, onLoudTile: isLoud)
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.85, anchor: .leading)))
+                            .layoutPriority(1)
+                    }
+                }
                 if let total = usage?.total, total.replies > 0 {
                     UsageMetrics(total: total, secondary: secondary).padding(.top, 2)
                 }
             }
             .layoutPriority(1)
             Spacer(minLength: 4)
-            Text(Self.elapsed(from: Self.timerStart(for: session), to: now))
-                .font(Theme.font(11).monospacedDigit())
-                .foregroundStyle(secondary)
-                .fixedSize()
-                .frame(maxHeight: .infinity, alignment: .top)
-                .help(timerHelp)
+            // A trailing column like Mail's date and flag: the timer, then who runs the session and how it
+            // pays, both on one right edge, so the name gets the whole text column.
+            VStack(alignment: .trailing, spacing: 6) {
+                Text(Self.elapsed(from: Self.timerStart(for: session), to: now))
+                    .font(Theme.font(11).monospacedDigit())
+                    .foregroundStyle(secondary)
+                    .help(timerHelp)
+                AgentMark(agent: session.agent, billing: billing, tint: isLoud ? Self.onColor : nil)
+            }
+            .fixedSize()
+            .frame(maxHeight: .infinity, alignment: .top)
         }
         // Shift+Tab in the agent swaps the badge in place: critically damped, no bounce.
         .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: session.permissionMode)
@@ -135,6 +144,7 @@ private struct SessionDetails: View {
     let now: Date
     let secondary: AnyShapeStyle
     let agentConnected: Bool
+    var billing: SignInMethod?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -143,7 +153,7 @@ private struct SessionDetails: View {
                 if let branch = session.branch { row("Branch", branch) }
                 if let title = session.title { row("Session", title) }
                 if let mode = session.permissionMode { row("Mode", mode.label) }
-                if let signIn = session.signIn, !signIn.hasPlanLimits { row("Billing", signIn.label) }
+                if let billing { row("Billing", billing.hasPlanLimits ? billing.label : "\(billing.label), per use") }
                 if let place = session.host?.label ?? session.term?.termProgram.map(Self.terminalName) { row("Where", place) }
                 row("Started", "\(ElapsedFormat.short(from: session.startedAt, to: now)) ago")
                 row("Last activity", "\(ElapsedFormat.short(from: session.lastEventAt, to: now)) ago")
@@ -305,7 +315,7 @@ private struct SubagentList: View {
     }
 }
 
-/// The mode the session runs in, when it isn't Manual: symbol and name, outlined like the agent label beside it.
+/// The mode the session runs in, when it isn't Manual: symbol and name, outlined, on the status line.
 /// Bypass gets a red symbol on calm tiles, since nothing asks before it acts.
 struct ModeMark: View {
     let mode: PermissionMode
@@ -352,21 +362,3 @@ struct ModeMark: View {
         }
     }
 }
-
-/// Which agent a card belongs to: a small outlined label, readable on every tile color.
-struct AgentMark: View {
-    let agent: AgentKind
-
-    var body: some View {
-        Text(agent.displayName)
-            .font(Theme.font(10, .semibold))
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1)
-            .overlay(Capsule().strokeBorder(lineWidth: 1).opacity(0.35))
-            .opacity(0.8)
-            .accessibilityLabel("Agent: \(agent.displayName)")
-    }
-}
-

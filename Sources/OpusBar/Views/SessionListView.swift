@@ -229,12 +229,14 @@ struct SessionListView: View {
     }
 
     private func rows(_ sessions: [Session], now: Date) -> some View {
-        ForEach(sessions) { session in
+        let accounts = AccountSignIn.merging(usage.signIns, remembered: store.signInByAccount)
+        return ForEach(sessions) { session in
             SessionRowView(session: session, now: now,
                            showsBranch: preferences.naming == .folderAndBranch,
                            isExpanded: expandedId.map { session.id.hasPrefix($0) } ?? false,
                            agentConnected: hooks.connectedAgents.contains(session.agent),
-                           usage: usage.sessions[session.id]) {
+                           usage: usage.sessions[session.id],
+                           billing: AccountSignIn.billing(of: session, accounts: accounts)) {
                 withAnimation(reduceMotion ? nil : Self.spring) {
                     expandedId = expandedId.map { session.id.hasPrefix($0) } == true ? nil : session.id
                 }
