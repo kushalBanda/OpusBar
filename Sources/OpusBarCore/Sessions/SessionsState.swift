@@ -6,6 +6,10 @@ public struct SessionsState: Equatable, Sendable {
     /// can't bring the row back. Oldest entries drop past `endedKept`.
     public var endedAt: [String: Int64]
     static let endedKept = 256
+    /// The mode each agent process had when its last session ended. `/clear` ends one session and starts
+    /// the next in the same process, whose SessionStart carries no mode. Used up by that next session;
+    /// capped like `endedAt` for processes that quit instead.
+    public var endedModeByPid: [Int32: PermissionMode] = [:]
 
     public init(byId: [String: Session] = [:], endedAt: [String: Int64] = [:]) {
         self.byId = byId

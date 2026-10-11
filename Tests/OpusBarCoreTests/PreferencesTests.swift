@@ -18,7 +18,7 @@ final class PreferencesTests: XCTestCase {
         XCTAssertEqual(prefs.naming, .folder)
         XCTAssertTrue(prefs.notifyNeedsYou)
         XCTAssertTrue(prefs.notifyError)
-        XCTAssertFalse(prefs.notifyDone)
+        XCTAssertTrue(prefs.notifyDone)
         XCTAssertFalse(prefs.connectCardDismissed)
     }
 
@@ -29,7 +29,7 @@ final class PreferencesTests: XCTestCase {
         prefs.animateCat = false
         prefs.retention = .never
         prefs.naming = .folderAndBranch
-        prefs.notifyDone = true
+        prefs.notifyDone = false
         prefs.notifyError = false
         prefs.connectCardDismissed = true
 
@@ -37,9 +37,16 @@ final class PreferencesTests: XCTestCase {
         XCTAssertFalse(again.animateCat)
         XCTAssertEqual(again.retention, .never)
         XCTAssertEqual(again.naming, .folderAndBranch)
-        XCTAssertTrue(again.notifyDone)
+        XCTAssertFalse(again.notifyDone)
         XCTAssertFalse(again.notifyError)
         XCTAssertTrue(again.connectCardDismissed)
+    }
+
+    @MainActor
+    func testDoneStaysOffForUsersWhoTurnedItOff() {
+        let defaults = freshDefaults()
+        defaults.set(false, forKey: "notifyDone")
+        XCTAssertFalse(Preferences(defaults: defaults).notifyDone)
     }
 
     @MainActor

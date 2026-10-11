@@ -68,7 +68,7 @@ public final class Preferences {
     public var naming: SessionNaming { didSet { defaults.set(naming.rawValue, forKey: Key.naming) } }
     public var notifyNeedsYou: Bool { didSet { defaults.set(notifyNeedsYou, forKey: Key.notifyNeedsYou) } }
     public var notifyError: Bool { didSet { defaults.set(notifyError, forKey: Key.notifyError) } }
-    /// Off by default: with many sessions it gets chatty.
+    /// On by default: a finished turn is the notice most people wait for.
     public var notifyDone: Bool { didSet { defaults.set(notifyDone, forKey: Key.notifyDone) } }
     public var connectCardDismissed: Bool { didSet { defaults.set(connectCardDismissed, forKey: Key.connectCardDismissed) } }
     /// A notification when a plan window with some use renews.
@@ -107,7 +107,7 @@ public final class Preferences {
         naming = defaults.string(forKey: Key.naming).flatMap(SessionNaming.init) ?? .folder
         notifyNeedsYou = defaults.object(forKey: Key.notifyNeedsYou) as? Bool ?? true
         notifyError = defaults.object(forKey: Key.notifyError) as? Bool ?? true
-        notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? false
+        notifyDone = defaults.object(forKey: Key.notifyDone) as? Bool ?? true
         connectCardDismissed = defaults.bool(forKey: Key.connectCardDismissed)
         notifyLimitReset = defaults.object(forKey: Key.notifyLimitReset) as? Bool ?? true
         checkForUpdates = defaults.object(forKey: Key.checkForUpdates) as? Bool ?? true

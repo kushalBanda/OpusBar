@@ -211,7 +211,8 @@ struct SessionListView: View {
             SessionRowView(session: session, now: now,
                            showsBranch: preferences.naming == .folderAndBranch,
                            isExpanded: expandedId.map { session.id.hasPrefix($0) } ?? false,
-                           agentConnected: hooks.connectedAgents.contains(session.agent)) {
+                           agentConnected: hooks.connectedAgents.contains(session.agent),
+                           usage: usage.sessions[session.id]) {
                 withAnimation(reduceMotion ? nil : Self.spring) {
                     expandedId = expandedId.map { session.id.hasPrefix($0) } == true ? nil : session.id
                 }

@@ -24,7 +24,12 @@ public struct Session: Identifiable, Equatable, Sendable {
     public var state: SessionState
     /// Short context for the row: "Edit", "Allow Bash?", "API error".
     public var detail: String?
-    public var subagents: Int
+    /// Last mode the hooks reported; nil until an event carries one (and for discovered rows).
+    public var permissionMode: PermissionMode?
+    /// Live subagents, oldest first.
+    public var subagents: [Subagent]
+    /// Claude's transcript, from hook events; where subagents' `meta.json` files live.
+    public var transcriptPath: String?
     public var startedAt: Date
     /// When `state` last changed. The row's elapsed time counts from here.
     public var stateSince: Date
@@ -42,7 +47,7 @@ public struct Session: Identifiable, Equatable, Sendable {
         branch: String? = nil,
         state: SessionState = .idle,
         detail: String? = nil,
-        subagents: Int = 0,
+        subagents: [Subagent] = [],
         startedAt: Date,
         stateSince: Date? = nil,
         lastEventAt: Date? = nil,
@@ -71,6 +76,15 @@ public struct Session: Identifiable, Equatable, Sendable {
     static func projectName(for cwd: String) -> String {
         let name = URL(filePath: cwd).lastPathComponent
         return name.isEmpty || name == "/" ? "Unknown project" : name
+    }
+
+    /// Replaces the subagent with the same id, or adds it at the end.
+    mutating func upsert(_ subagent: Subagent) {
+        if let index = subagents.firstIndex(where: { $0.id == subagent.id }) {
+            subagents[index] = subagent
+        } else {
+            subagents.append(subagent)
+        }
     }
 
     /// Changes state and detail; `stateSince` moves only when the state really changes.

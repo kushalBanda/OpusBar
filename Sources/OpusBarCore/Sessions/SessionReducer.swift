@@ -14,6 +14,12 @@ public enum SessionReducer {
 
         // SessionEnd always wins, even if it arrives out of order.
         if e.event == .sessionEnd {
+            if let ended = state.byId[e.sessionId], let pid = ended.pid ?? event.pid, let mode = ended.permissionMode {
+                state.endedModeByPid[pid] = mode
+                if state.endedModeByPid.count > SessionsState.endedKept, let any = state.endedModeByPid.keys.first(where: { $0 != pid }) {
+                    state.endedModeByPid[any] = nil
+                }
+            }
             state.byId[e.sessionId] = nil
             state.endedAt[e.sessionId] = max(state.endedAt[e.sessionId] ?? .min, event.ts)
             if state.endedAt.count > SessionsState.endedKept,
@@ -25,8 +31,8 @@ public enum SessionReducer {
         // Sent before this session ended, delivered after.
         if let ended = state.endedAt[e.sessionId], event.ts <= ended { return state }
 
-        var session = state.byId[e.sessionId]
-            ?? Session(id: e.sessionId, agent: event.agent ?? .claude, cwd: e.cwd ?? "", startedAt: now)
+        var session = state.byId[e.sessionId] ?? newSession(for: event, in: state, now: now)
+        if state.byId[e.sessionId] == nil, let pid = event.pid { state.endedModeByPid[pid] = nil }
         // Async hooks can arrive out of order; drop anything older than what we have applied.
         guard event.ts >= session.lastEventTs else { return state }
 
@@ -36,6 +42,27 @@ public enum SessionReducer {
         session.isDiscovered = false
         if let pid = event.pid { session.pid = pid }
         if let term = event.term { session.term = term }
+        if let mode = PermissionMode(raw: e.permissionMode) { session.permissionMode = mode }
+        if let path = e.transcriptPath, !path.isEmpty { session.transcriptPath = path }
+
+        // Inside a subagent: its own row moves, the parent's state doesn't. A background subagent keeps
+        // working after the parent's Stop, and must not turn a finished session back to working.
+        // A permission prompt still blocks on the user, so it falls through to the parent below.
+        if let agentId = e.agentId, !agentId.isEmpty, e.event != .subagentStart, e.event != .subagentStop {
+            var subagent = session.subagents.first { $0.id == agentId }
+                ?? Subagent(id: agentId, type: e.agentType ?? "", startedAt: now)
+            subagent.lastEventAt = now
+            switch e.event {
+            case .preToolUse: subagent.tool = e.toolName
+            case .postToolUse, .postToolUseFailure: subagent.tool = nil
+            default: break
+            }
+            session.upsert(subagent)
+            if e.event != .permissionRequest {
+                state.byId[session.id] = session
+                return state
+            }
+        }
         if let cwd = e.cwd, !cwd.isEmpty, cwd != session.cwd {
             session.cwd = cwd
             session.projectName = Session.projectName(for: cwd)
@@ -45,7 +72,7 @@ public enum SessionReducer {
         case .sessionStart:
             session.transition(to: .idle, detail: nil, now: now)
             session.turnStartedAt = nil
-            session.subagents = 0
+            session.subagents = []
         case .userPromptSubmit:
             session.transition(to: .thinking, detail: nil, now: now)
             session.turnStartedAt = now
@@ -64,12 +91,20 @@ public enum SessionReducer {
                 session.transition(to: .needsAttention, detail: detail, now: now)
             }
         case .subagentStart:
-            session.subagents += 1
+            let id = e.agentId.flatMap { $0.isEmpty ? nil : $0 } ?? "start:\(event.ts)"
+            var subagent = session.subagents.first { $0.id == id } ?? Subagent(id: id, type: e.agentType ?? "", startedAt: now)
+            if let type = e.agentType, !type.isEmpty { subagent.type = type }
+            subagent.lastEventAt = now
+            session.upsert(subagent)
         case .subagentStop:
-            session.subagents = max(0, session.subagents - 1)
+            if let id = e.agentId, let index = session.subagents.firstIndex(where: { $0.id == id }) {
+                session.subagents.remove(at: index)
+            } else if !session.subagents.isEmpty {
+                session.subagents.removeFirst() // a stop without an id ends the oldest
+            }
         case .stop:
+            // Subagents stay: background ones run on after the turn and report their own stop.
             session.transition(to: .done, detail: nil, now: now)
-            session.subagents = 0
             session.turnStartedAt = nil
         case .stopFailure:
             session.transition(to: .error, detail: "API error", now: now)
@@ -80,6 +115,18 @@ public enum SessionReducer {
 
         state.byId[session.id] = session
         return state
+    }
+
+    /// `/clear` and `/resume` start a new session id in the same process, and the mode carries over;
+    /// SessionStart doesn't report it, so take it from the process's previous session (ended, or the
+    /// discovered row it is replacing).
+    static func newSession(for event: WireEvent, in state: SessionsState, now: Date) -> Session {
+        var session = Session(id: event.e.sessionId, agent: event.agent ?? .claude, cwd: event.e.cwd ?? "", startedAt: now)
+        if let pid = event.pid {
+            session.permissionMode = state.endedModeByPid[pid]
+                ?? state.byId.values.first { $0.pid == pid && $0.permissionMode != nil }?.permissionMode
+        }
+        return session
     }
 
     /// The user has seen these done sessions (the menu was open): Done turns back to Idle, so the

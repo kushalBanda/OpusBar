@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.5
+
+- Notifications when a session finishes are on by default.
+- Settings > Notifications says when macOS is blocking notifications, or showing them without a banner, and takes you straight to the fix. A new button sends a test notification.
+- Session cards show the mode each session runs in: Plan, Accept edits, Auto, Don't ask or Bypass.
+- Session cards list live subagents: what kind, their task, the tool they're running and for how long.
+- Session cards show tokens and cost: new input, output, cache reads and API cost, subagents included.
+
 ## 0.1.4
 
 - Fixed a crash when opening the menu.
