@@ -45,11 +45,47 @@ final class CatSheet {
 
     private let sheet: CGImage?
     private var cache: [Int: CGImage] = [:]
+    private var offsets: [[Int]: CGPoint] = [:]
+    /// Alpha per pixel, rows from the top; read on the first `centerOffset`.
+    private lazy var alpha: [UInt8] = {
+        guard let sheet else { return [] }
+        let (w, h) = (sheet.width, sheet.height)
+        var pixels = [UInt8](repeating: 0, count: w * h)
+        guard let context = CGContext(data: &pixels, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w,
+                                      space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.alphaOnly.rawValue)
+        else { return [] }
+        context.draw(sheet, in: CGRect(x: 0, y: 0, width: w, height: h))
+        return pixels
+    }()
 
     init(named name: String) {
         sheet = Self.url(forSheet: name)
             .flatMap { NSImage(contentsOf: $0) }
             .flatMap { $0.cgImage(forProposedRect: nil, context: nil, hints: nil) }
+    }
+
+    /// How far, in frame pixels, the cat's drawn pixels sit from the middle of their cells, over all of a pose's
+    /// frames: the sheets don't center their cats, and by a different amount per coat and pose. One offset per
+    /// pose, so an animation doesn't wobble as its frames change.
+    func centerOffset(frames: [(col: Int, row: Int)]) -> CGPoint {
+        let key = frames.flatMap { [$0.col, $0.row] }
+        if let known = offsets[key] { return known }
+        let size = Self.framePixels
+        let width = sheet?.width ?? 0
+        var (minX, maxX, minY, maxY) = (size, -1, size, -1)
+        for frame in frames {
+            for y in 0..<size {
+                for x in 0..<size {
+                    let index = (frame.row * size + y) * width + frame.col * size + x
+                    guard index < alpha.count, alpha[index] > 0 else { continue }
+                    minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
+                }
+            }
+        }
+        let offset = maxX < 0 ? .zero
+            : CGPoint(x: CGFloat(minX + maxX + 1) / 2 - CGFloat(size) / 2, y: CGFloat(minY + maxY + 1) / 2 - CGFloat(size) / 2)
+        offsets[key] = offset
+        return offset
     }
 
     func frame(col: Int, row: Int) -> CGImage? {

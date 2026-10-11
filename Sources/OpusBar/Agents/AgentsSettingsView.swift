@@ -9,6 +9,7 @@ import SwiftUI
 struct AgentsSettingsView: View {
     @Bindable var model: AgentHooksModel
     let store: SessionStore
+    let usage: UsageModel
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -52,7 +53,11 @@ struct AgentsSettingsView: View {
                         .font(Theme.font(12, .regular)).opacity(0.72)
                 }
             }
-            ForEach(rows) { TargetTile(row: $0, model: model, activity: store.hookActivity[agent]) }
+            let accounts = AccountSignIn.merging(usage.signIns, remembered: store.signInByAccount)
+            ForEach(rows) { row in
+                TargetTile(row: row, model: model, activity: store.hookActivity[agent],
+                           signIn: AccountSignIn.find(agent: agent, root: row.target.root.path, in: accounts))
+            }
             footer()
         }
     }
@@ -63,6 +68,8 @@ private struct TargetTile: View {
     let row: AgentHooksModel.Row
     let model: AgentHooksModel
     let activity: SessionStore.HookActivity?
+    /// How this profile or home pays, from its files and its latest session; nil when nothing says.
+    let signIn: AccountSignIn?
 
     var body: some View {
         Tile(fill: fill, onColor: true) {
@@ -72,13 +79,7 @@ private struct TargetTile: View {
                     .background(RoundedRectangle(cornerRadius: 12).fill(Theme.tileLight))
                 VStack(alignment: .leading, spacing: 4) {
                     TileHeading(title: title, subtitle: subtitle)
-                    if let email = model.emails[row.target.id] {
-                        Label(email, systemImage: "person.crop.circle")
-                            .font(Theme.font(12, .medium))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                            .help("The account this profile is signed in with")
-                    }
+                    account
                     Text(displayPath)
                         .font(.system(size: 11).monospaced())
                         .opacity(0.72)
@@ -92,6 +93,28 @@ private struct TargetTile: View {
                 Spacer(minLength: 8)
                 VStack(alignment: .trailing, spacing: 6) { actions }
             }
+        }
+    }
+
+    /// How the profile pays, in words: the tile's colors are its connection status, so logos stay in the menu. The email shows only where that account is what pays (a plan,
+    /// API billing): a profile on Bedrock or Vertex still holds an old claude.ai sign-in that has nothing to do with it.
+    @ViewBuilder
+    private var account: some View {
+        let email = row.target.agent == .claude ? model.emails[row.target.id] : signIn?.label.flatMap { $0.contains("@") ? $0 : nil }
+        if let method = signIn?.method {
+            HStack(spacing: 6) {
+                Text(method.label).font(Theme.font(12, .semibold))
+                if method == .subscription || method == .apiKey, let email {
+                    Text("· \(email)").font(Theme.font(12, .medium)).lineLimit(1).truncationMode(.middle)
+                }
+            }
+            .help(method.hasPlanLimits ? "Pays through a plan, with limits" : "Billed per use through \(method.label): no plan limits")
+        } else if let email {
+            Label(email, systemImage: "person.crop.circle")
+                .font(Theme.font(12, .medium))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help("The account this profile is signed in with")
         }
     }
 

@@ -130,7 +130,7 @@ struct SettingsView: View {
         switch navigation.pane {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
         case .cat: CatPane(preferences: preferences)
-        case .agents: AgentsSettingsView(model: hooks, store: store)
+        case .agents: AgentsSettingsView(model: hooks, store: store, usage: usage)
         case .usage: UsagePane(usage: usage)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier, usage: usage)
         case .about: AboutPane(updater: updater, preferences: preferences)

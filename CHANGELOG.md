@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.13
+
+- Settings › Agents says how each profile pays: Subscription, API billing, Amazon Bedrock, Google Vertex AI, Microsoft Foundry or a custom endpoint. The email shows only where that account is what pays, not the old claude.ai login a Bedrock or Vertex profile still holds.
+- The Claude and Codex logos keep their own colors on every card, and the billing badge no longer cuts into them.
+- The cache figure's icon sits level with the others on the tokens line.
+- The cat sits in the middle of its tile in every coat and pose.
+
 ## 0.1.12
 
 - Sessions already running when OpusBar starts show how they pay right away, instead of no badge until their next event.

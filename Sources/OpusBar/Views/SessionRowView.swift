@@ -84,7 +84,7 @@ struct SessionRowView: View {
                     .font(Theme.font(11).monospacedDigit())
                     .foregroundStyle(secondary)
                     .help(timerHelp)
-                AgentMark(agent: session.agent, billing: billing, tint: isLoud ? Self.onColor : nil)
+                AgentMark(agent: session.agent, billing: billing)
             }
             .fixedSize()
             .frame(maxHeight: .infinity, alignment: .top)
@@ -260,10 +260,12 @@ private struct UsageMetrics: View {
 /// A cache read: a database cylinder with a small "r" set low at its right, like a subscript.
 private struct CacheGlyph: View {
     var body: some View {
-        HStack(alignment: .lastTextBaseline, spacing: 1) {
-            Image(systemName: "cylinder")
-            Text("r").font(.system(size: 7, weight: .heavy, design: .rounded)).baselineOffset(-1.5)
-        }
+        // The "r" hangs off the cylinder's corner, outside its frame, so the glyph centers on the line like the arrows.
+        Image(systemName: "cylinder")
+            .overlay(alignment: .bottomTrailing) {
+                Text("r").font(.system(size: 6.5, weight: .heavy, design: .rounded)).offset(x: 4, y: 1)
+            }
+            .padding(.trailing, 4)
     }
 }
 
