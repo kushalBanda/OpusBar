@@ -36,25 +36,6 @@ final class AccountSignInTests: XCTestCase {
         XCTAssertNil(CodexSignIn.method(authFile: json("{}")))
     }
 
-    func testLiveSessionOverridesItsProfile() {
-        let root = FileManager.default.temporaryDirectory.appending(path: "signin-\(UUID().uuidString)/.claude")
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root.deletingLastPathComponent()) }
-        // `/var` is a link to `/private/var`: compare real paths, as the app does.
-        let resolved = realpath(root.path, nil)
-        defer { free(resolved) }
-        let canonical = resolved.map { String(cString: $0) } ?? root.path
-        let profile = AccountSignIn(agent: .claude, root: canonical, label: "me@x.com", method: .subscription)
-        var session = Session(id: "s", cwd: "/tmp", startedAt: Date())
-        session.transcriptPath = root.appending(path: "projects/-tmp/s.jsonl").path
-        session.signIn = .apiKey
-        let merged = AccountSignIn.merging([profile], sessions: [session])
-        XCTAssertEqual(merged.map(\.method), [.apiKey])
-        XCTAssertEqual(merged.first?.label, "me@x.com")
-        XCTAssertEqual(AccountSignIn.merging([profile], sessions: [Session(id: "t", cwd: "/tmp", startedAt: Date())]), [profile],
-                       "a session that reported nothing leaves the profile alone")
-    }
-
     func testManagedSettingsWinOverTheUsers() {
         let managed = json(#"{"env":{"CLAUDE_CODE_USE_VERTEX":"1"}}"#)
         let settings = json(#"{"apiKeyHelper":"~/bin/key"}"#)
@@ -78,16 +59,6 @@ final class AccountSignInTests: XCTestCase {
         XCTAssertNil(CodexSignIn.provider(config: "model_provider = \"openai\""))
         XCTAssertNil(CodexSignIn.provider(config: "[profiles.local]\nmodel_provider = \"ollama\""), "only the top level")
         XCTAssertNil(CodexSignIn.provider(config: "model_providers_extra = 1"))
-    }
-
-    func testCodexSessionMapsToItsHome() {
-        var session = Session(id: "c", agent: .codex, cwd: "/tmp", startedAt: Date())
-        session.transcriptPath = "/nonexistent/.codex-work/sessions/2026/10/11/rollout-x.jsonl"
-        session.signIn = .apiKey
-        let merged = AccountSignIn.merging([], sessions: [session])
-        XCTAssertEqual(merged.map(\.root), ["/nonexistent/.codex-work"])
-        XCTAssertEqual(merged.map(\.agent), [.codex])
-        XCTAssertEqual(merged.first?.label, "codex-work")
     }
 
     func testSavedConsoleKeyOverridesTheSubscription() {
@@ -139,5 +110,36 @@ final class AccountSignInTests: XCTestCase {
         _ = CodexUsageParser.parse(line, state: &state)
         XCTAssertEqual(state.provider, "ollama")
         XCTAssertNotNil(state.providerAt)
+    }
+
+    func testRememberedSignInOverridesItsProfile() {
+        let profile = AccountSignIn(agent: .claude, root: "/Users/me/.claude", label: "me@x.com", method: .subscription)
+        let merged = AccountSignIn.merging([profile], remembered: ["claude:/Users/me/.claude": .bedrock])
+        XCTAssertEqual(merged.map(\.method), [.bedrock])
+        XCTAssertEqual(merged.first?.label, "me@x.com")
+        XCTAssertEqual(merged.first?.folder, "claude")
+        let added = AccountSignIn.merging([], remembered: ["codex:/Users/me/.codex-work": .apiKey])
+        XCTAssertEqual(added.map(\.agent), [.codex])
+        XCTAssertEqual(added.first?.label, "codex-work")
+    }
+
+    @MainActor
+    func testStoreRemembersEachProfilesLatestSignIn() {
+        var saved: [String: SignInMethod] = [:]
+        let store = SessionStore(isAlive: { _ in true }, branchReader: { _ in nil }, subagentMeta: { _, _ in nil },
+                                 saveSignIns: { saved = $0 })
+        func send(_ id: String, _ transcript: String, _ signIn: SignInMethod?, agent: AgentKind? = nil, ts: Int64) {
+            var e = SlimEvent(sessionId: id, event: .userPromptSubmit)
+            e.cwd = "/tmp/p"
+            e.transcriptPath = transcript
+            store.apply(WireEvent(ts: ts, agent: agent, signIn: signIn, e: e))
+        }
+        send("a", "/nonexistent/.claude/projects/-tmp-p/a.jsonl", .bedrock, ts: 1)
+        send("b", "/nonexistent/.claude-kb/projects/-tmp-p/b.jsonl", nil, ts: 2)
+        send("c", "/nonexistent/.codex/sessions/2026/10/11/rollout-c.jsonl", .apiKey, agent: .codex, ts: 3)
+        XCTAssertEqual(store.signInByAccount, ["claude:/nonexistent/.claude": .bedrock, "codex:/nonexistent/.codex": .apiKey])
+        XCTAssertEqual(saved, store.signInByAccount)
+        send("d", "/nonexistent/.claude/projects/-tmp-p/d.jsonl", nil, ts: 4)
+        XCTAssertNil(store.signInByAccount["claude:/nonexistent/.claude"], "a plain session hands the profile back to its files")
     }
 }

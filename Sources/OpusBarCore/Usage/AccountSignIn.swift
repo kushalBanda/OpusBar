@@ -19,25 +19,24 @@ public struct AccountSignIn: Equatable, Sendable, Identifiable {
         self.method = method
     }
 
-    /// A live session's own environment beats the profile's files: it is what that process actually uses.
-    /// The newest session of each profile or home wins.
-    public static func merging(_ accounts: [AccountSignIn], sessions: [Session]) -> [AccountSignIn] {
+    /// What a profile's latest session reported from its environment (`SessionStore.signInByAccount`) beats
+    /// the profile's files: it is what that process actually used.
+    public static func merging(_ accounts: [AccountSignIn], remembered: [String: SignInMethod]) -> [AccountSignIn] {
         var result = accounts
-        var seen = Set<String>()
-        for session in sessions.filter({ $0.signIn != nil }).sorted(by: { $0.lastEventAt > $1.lastEventAt }) {
-            guard let path = session.transcriptPath, let root = root(ofTranscript: path, agent: session.agent),
-                  let method = session.signIn else { continue }
-            let canonical = UsageLogReader.canonical(root)
-            guard seen.insert("\(session.agent.rawValue):\(canonical)").inserted else { continue }
-            if let index = result.firstIndex(where: { $0.agent == session.agent && $0.root == canonical }) {
+        for (key, method) in remembered.sorted(by: { $0.key < $1.key }) {
+            if let index = result.firstIndex(where: { $0.id == key }) {
                 result[index].method = method
-            } else {
-                result.append(AccountSignIn(agent: session.agent, root: canonical, label: AccountFolder.name(canonical),
-                                            method: method))
+                continue
             }
+            guard let colon = key.firstIndex(of: ":"), let agent = AgentKind(rawValue: String(key[..<colon])) else { continue }
+            let root = String(key[key.index(after: colon)...])
+            result.append(AccountSignIn(agent: agent, root: root, label: AccountFolder.name(root), method: method))
         }
         return result
     }
+
+    /// The profile or home folder's name: what tells apart two Claude profiles signed in with one email.
+    public var folder: String { AccountFolder.name(root) }
 
     /// Claude: `<root>/projects/<folder>/<id>.jsonl`. Codex: `<home>/sessions/…/rollout-….jsonl` (or
     /// `archived_sessions`).

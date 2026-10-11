@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.10
+
+- A profile that runs on Amazon Bedrock, Vertex AI, Foundry or an API key only because your shell says so keeps its "Billed per use" row after its sessions end, and after OpusBar restarts. A plain session in that profile hands it back to its files.
+- Billed-per-use rows name the profile folder, so two profiles signed in with one email (a Bedrock shell and a Pro login) are told apart.
+
 ## 0.1.9
 
 - OpusBar knows how each Claude and Codex account is signed in. Accounts billed per use (an API key, a Console sign-in, a custom endpoint, Amazon Bedrock, Google Vertex AI or Microsoft Foundry) get a "Billed per use" card in the Usage tab instead of waiting for plan limits that never come.
