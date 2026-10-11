@@ -150,7 +150,8 @@ private struct LimitsCard: View {
     var body: some View {
         UsageCard {
             HStack(spacing: 6) {
-                AgentLogo(agent: limits.agent, size: 13)
+                // Plan limits only come from a plan: the same badged mark as the session cards.
+                AgentMark(agent: limits.agent, billing: .subscription)
                 Text(limits.agent.displayName).font(Theme.font(12, .semibold))
                 // The name before the @ tells accounts apart in the room a card has; the tooltip has it all.
                 if showsAccount, let label = limits.label {

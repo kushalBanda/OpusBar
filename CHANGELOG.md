@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.15
+
+- The plan limit cards at the top of the Usage tab carry the same badged Claude or Codex logo as the session cards.
+- Subscription, API billing and custom endpoint badges are plain symbols again, without the grey tile; only Amazon Bedrock, Google Vertex AI and Microsoft Foundry are in color.
+
 ## 0.1.14
 
 - Accounts in the Usage tab and in Settings › Usage say how each pays: "you@example.com · Subscription", "work · Bedrock". A profile on Bedrock, Vertex AI, Foundry or a custom endpoint goes by its folder, not the old claude.ai email it still holds.
