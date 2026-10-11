@@ -20,7 +20,7 @@ enum DropdownTab: String, CaseIterable {
 @MainActor
 struct UsageDropdownView: View {
     let usage: UsageModel
-    let sessions: [Session]
+    let remembered: [String: SignInMethod]
     let maxHeight: CGFloat
     @State private var range: UsageRange = .day
 
@@ -35,7 +35,7 @@ struct UsageDropdownView: View {
 
     private func content(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            let perUse = AccountSignIn.merging(usage.signIns, sessions: sessions).filter { !$0.method.hasPlanLimits }
+            let perUse = AccountSignIn.merging(usage.signIns, remembered: remembered).filter { !$0.method.hasPlanLimits }
             if usage.limits.isEmpty && perUse.isEmpty {
                 UsageCard {
                     CardHeader(title: "Plan limits", symbol: "gauge.with.dots.needle.33percent")
@@ -123,14 +123,15 @@ private struct PerUseCard: View {
             ForEach(accounts) { account in
                 HStack(spacing: 6) {
                     AgentLogo(agent: account.agent, size: 13)
-                    Text(account.agent.displayName).font(Theme.font(12, .semibold))
-                    if let label = account.label {
-                        Text(label.split(separator: "@").first.map(String.init) ?? label)
-                            .font(Theme.font(11, .regular)).foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
-                            .help(label)
+                    // Claude profiles often share one email (a Bedrock shell and a Pro login): the folder tells them apart.
+                    let name = account.agent == .claude ? account.folder : account.label.map { $0.split(separator: "@").first.map(String.init) ?? $0 }
+                    if let name {
+                        Text(name).font(Theme.font(12, .semibold)).lineLimit(1).truncationMode(.middle)
+                            .help("\(account.agent.displayName) · \(account.label ?? account.root)")
                     }
                     Spacer(minLength: 6)
-                    Text(account.method.label).font(Theme.font(11, .medium)).lineLimit(1)
+                    Text(account.method.shortLabel).font(Theme.font(11, .medium)).foregroundStyle(.secondary).lineLimit(1)
+                        .layoutPriority(1)
                 }
             }
             Text("No plan limits. API value below is roughly what these accounts pay.")

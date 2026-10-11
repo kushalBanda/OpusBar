@@ -16,6 +16,12 @@ public final class SessionStore {
     @ObservationIgnored private let branchReader: (String) -> String?
     @ObservationIgnored private let subagentMeta: (String, String) -> (type: String?, description: String?)?
     @ObservationIgnored private var pruneTimer: Timer?
+    @ObservationIgnored private let saveSignIns: ([String: SignInMethod]) -> Void
+
+    /// The sign-in each profile's or home's latest session reported from its environment, by
+    /// `AccountSignIn.id`. Kept after the session leaves: a shell that exports `CLAUDE_CODE_USE_BEDROCK` says
+    /// so nowhere else. A session whose environment says nothing clears it, so the profile's files decide again.
+    public private(set) var signInByAccount: [String: SignInMethod]
 
     public init(
         finishedTTL: TimeInterval = 10 * 60,
@@ -23,8 +29,12 @@ public final class SessionStore {
         now: @escaping () -> Date = Date.init,
         isAlive: @escaping (Int32) -> Bool = SessionStore.processIsAlive,
         branchReader: @escaping (String) -> String? = GitBranchReader.branch(atPath:),
-        subagentMeta: @escaping (String, String) -> (type: String?, description: String?)? = Subagent.readMeta
+        subagentMeta: @escaping (String, String) -> (type: String?, description: String?)? = Subagent.readMeta,
+        signInByAccount: [String: SignInMethod] = [:],
+        saveSignIns: @escaping ([String: SignInMethod]) -> Void = { _ in }
     ) {
+        self.signInByAccount = signInByAccount
+        self.saveSignIns = saveSignIns
         self.branchReader = branchReader
         self.subagentMeta = subagentMeta
         self.finishedTTL = finishedTTL
@@ -73,6 +83,16 @@ public final class SessionStore {
             next.byId[id] = session
         }
         set(next)
+        remember(event, session: next.byId[id])
+    }
+
+    private func remember(_ event: WireEvent, session: Session?) {
+        guard let session, let path = session.transcriptPath,
+              let root = AccountSignIn.root(ofTranscript: path, agent: session.agent) else { return }
+        let key = AccountSignIn(agent: session.agent, root: UsageLogReader.canonical(root), label: nil, method: .subscription).id
+        guard signInByAccount[key] != event.signIn else { return }
+        signInByAccount[key] = event.signIn
+        saveSignIns(signInByAccount)
     }
 
     /// A discovered session counts as active while its session file changed within this window.

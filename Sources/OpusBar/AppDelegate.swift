@@ -20,7 +20,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
         BrandFont.register()
         let preferences = Preferences()
-        let store = SessionStore(finishedTTL: preferences.retention.seconds)
+        // Each profile's last reported sign-in, by account id: `["claude:/Users/me/.claude": "bedrock"]`.
+        let signInsKey = "signInByAccount"
+        let savedSignIns = (UserDefaults.standard.dictionary(forKey: signInsKey) as? [String: String] ?? [:])
+            .compactMapValues(SignInMethod.init(rawValue:))
+        let store = SessionStore(finishedTTL: preferences.retention.seconds, signInByAccount: savedSignIns,
+                                 saveSignIns: { UserDefaults.standard.set($0.mapValues(\.rawValue), forKey: signInsKey) })
         self.preferences = preferences
         self.store = store
         followRetention()

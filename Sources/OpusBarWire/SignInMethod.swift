@@ -25,6 +25,16 @@ public enum SignInMethod: String, Codable, Equatable, Sendable, CaseIterable {
         }
     }
 
+    /// For a row with little room: "Bedrock", not "Amazon Bedrock".
+    public var shortLabel: String {
+        switch self {
+        case .bedrock: "Bedrock"
+        case .vertex: "Vertex AI"
+        case .foundry: "Foundry"
+        default: label
+        }
+    }
+
     /// The variables Claude Code reads, in its own order of precedence. Only whether each is set is looked at;
     /// no value leaves the hook. Nil when none is set: the profile's files decide then.
     /// `declined` says whether the user turned down this `ANTHROPIC_API_KEY` at Claude's prompt.
