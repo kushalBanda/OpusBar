@@ -14,6 +14,7 @@ public final class SessionStore {
     @ObservationIgnored private let isAlive: (Int32) -> Bool
     @ObservationIgnored private let pruneInterval: TimeInterval
     @ObservationIgnored private let branchReader: (String) -> String?
+    @ObservationIgnored private let subagentMeta: (String, String) -> (type: String?, description: String?)?
     @ObservationIgnored private var pruneTimer: Timer?
 
     public init(
@@ -21,9 +22,11 @@ public final class SessionStore {
         pruneInterval: TimeInterval = 30,
         now: @escaping () -> Date = Date.init,
         isAlive: @escaping (Int32) -> Bool = SessionStore.processIsAlive,
-        branchReader: @escaping (String) -> String? = GitBranchReader.branch(atPath:)
+        branchReader: @escaping (String) -> String? = GitBranchReader.branch(atPath:),
+        subagentMeta: @escaping (String, String) -> (type: String?, description: String?)? = Subagent.readMeta
     ) {
         self.branchReader = branchReader
+        self.subagentMeta = subagentMeta
         self.finishedTTL = finishedTTL
         self.pruneInterval = pruneInterval
         self.now = now
@@ -60,6 +63,15 @@ public final class SessionStore {
             session.branch = branchReader(session.cwd)
             next.byId[id] = session
         }
+        // Claude writes a subagent's meta.json around its start: look until it's there, one small read per event.
+        if event.e.agentId != nil, var session = next.byId[id], let path = session.transcriptPath {
+            for (index, subagent) in session.subagents.enumerated() where subagent.description == nil {
+                guard let meta = subagentMeta(path, subagent.id) else { continue }
+                session.subagents[index].description = meta.description
+                if subagent.type.isEmpty, let type = meta.type { session.subagents[index].type = type }
+            }
+            next.byId[id] = session
+        }
         set(next)
     }
 
@@ -82,6 +94,8 @@ public final class SessionStore {
                   var session = next.byId[id]
             else { continue }
             if let host = process.host { session.host = host }
+            // Hooks report the mode with each prompt; until the first one, discovery's reading stands in.
+            if session.permissionMode == nil { session.permissionMode = process.permissionMode }
             guard let record = process.record else { next.byId[id] = session; continue }
             if let title = record.title {
                 session.title = title
@@ -116,6 +130,7 @@ public final class SessionStore {
             session.title = process.record?.title
             session.titleIsDerived = process.record?.titleIsDerived ?? false
             session.host = process.host
+            session.permissionMode = process.permissionMode
             if let record = process.record {
                 session.lastEventAt = record.modifiedAt
                 // The agent's own status beats guessing from file activity.

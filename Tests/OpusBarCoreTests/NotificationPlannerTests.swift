@@ -45,6 +45,17 @@ final class NotificationPlannerTests: XCTestCase {
         XCTAssertEqual(NotificationPlanner.plan(old: old, new: new, rules: none).post, [])
     }
 
+    func testPermissionModeLabels() {
+        XCTAssertEqual(PermissionMode(raw: "default"), .manual)
+        XCTAssertTrue(PermissionMode(raw: "default")!.isDefault)
+        XCTAssertEqual(PermissionMode(raw: "acceptEdits")?.label, "Accept edits")
+        XCTAssertEqual(PermissionMode(raw: "bypassPermissions")?.label, "Bypass")
+        XCTAssertEqual(PermissionMode(raw: "full-access")?.label, "Full access")
+        XCTAssertEqual(PermissionMode(raw: "workspaceWrite")?.label, "Workspace write")
+        XCTAssertNil(PermissionMode(raw: ""))
+        XCTAssertNil(PermissionMode(raw: nil))
+    }
+
     func testNewSessionAlreadyNeedingYouPosts() {
         let plan = NotificationPlanner.plan(old: state(), new: state(session("a", .needsAttention)), rules: all)
         XCTAssertEqual(plan.post.first?.body, "Claude Code · Waiting for you")

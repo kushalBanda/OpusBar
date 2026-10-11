@@ -25,6 +25,16 @@ final class SessionReducerTests: XCTestCase {
         return try XCTUnwrap(state.byId.values.first)
     }
 
+    func testPermissionModeFollowsTheLatestEventThatCarriesIt() throws {
+        var plan = ev(.userPromptSubmit)
+        plan.permissionMode = "plan"
+        var edits = ev(.preToolUse, tool: "Edit")
+        edits.permissionMode = "acceptEdits"
+        XCTAssertNil(try only(run([ev(.sessionStart)])).permissionMode)
+        XCTAssertEqual(try only(run([ev(.sessionStart), plan, ev(.postToolUse)])).permissionMode, .plan)
+        XCTAssertEqual(try only(run([plan, edits])).permissionMode, .acceptEdits)
+    }
+
     func testSessionStartCreatesIdle() throws {
         let s = try only(run([ev(.sessionStart)]))
         XCTAssertEqual(s.state, .idle)
@@ -73,17 +83,42 @@ final class SessionReducerTests: XCTestCase {
         XCTAssertEqual(try only(run([ev(.stop), ev(.notification, type: "idle_prompt")])).state, .done)
     }
 
-    func testSubagentCountIncrementsAndFloorsAtZero() throws {
-        let up = try only(run([ev(.subagentStart), ev(.subagentStart), ev(.subagentStop)]))
-        XCTAssertEqual(up.subagents, 1)
-        let floor = try only(run([ev(.subagentStop), ev(.subagentStop)]))
-        XCTAssertEqual(floor.subagents, 0)
+    private func sub(_ name: HookEventName, _ agent: String, type: String = "Explore", tool: String? = nil) -> SlimEvent {
+        SlimEvent(sessionId: "s", event: name, cwd: "/Users/me/api-server", toolName: tool, agentId: agent, agentType: type)
     }
 
-    func testStopDoneResetsSubagents() throws {
-        let s = try only(run([ev(.subagentStart), ev(.stop)]))
+    func testSubagentsStartAndStopById() throws {
+        let up = try only(run([sub(.subagentStart, "a"), sub(.subagentStart, "b", type: "general-purpose"), sub(.subagentStop, "a")]))
+        XCTAssertEqual(up.subagents.map(\.id), ["b"])
+        XCTAssertEqual(up.subagents.first?.typeLabel, "General purpose")
+        XCTAssertEqual(try only(run([ev(.subagentStop), ev(.subagentStop)])).subagents, [])
+    }
+
+    func testSubagentToolsMoveOnlyTheSubagent() throws {
+        let s = try only(run([ev(.userPromptSubmit), ev(.preToolUse, tool: "Agent"), sub(.subagentStart, "a"),
+                              sub(.preToolUse, "a", tool: "Grep")]))
+        XCTAssertEqual(s.state, .working)
+        XCTAssertEqual(s.detail, "Agent")
+        XCTAssertEqual(s.subagents.first?.tool, "Grep")
+        XCTAssertNil(try only(run([sub(.subagentStart, "a"), sub(.preToolUse, "a", tool: "Grep"), sub(.postToolUse, "a", tool: "Grep")]))
+            .subagents.first?.tool)
+    }
+
+    func testBackgroundSubagentOutlivesTheTurnAndLeavesItDone() throws {
+        let s = try only(run([ev(.userPromptSubmit), sub(.subagentStart, "bg"), ev(.stop), sub(.preToolUse, "bg", tool: "Bash")]))
         XCTAssertEqual(s.state, .done)
-        XCTAssertEqual(s.subagents, 0)
+        XCTAssertEqual(s.subagents.map(\.id), ["bg"])
+        XCTAssertEqual(s.subagents.first?.tool, "Bash")
+    }
+
+    func testSubagentPermissionPromptNeedsTheUser() throws {
+        let s = try only(run([sub(.subagentStart, "a"), sub(.permissionRequest, "a", tool: "Bash")]))
+        XCTAssertEqual(s.state, .needsAttention)
+        XCTAssertEqual(s.detail, "Allow Bash?")
+    }
+
+    func testSubagentSeenFirstMidRunIsAdded() throws {
+        XCTAssertEqual(try only(run([sub(.preToolUse, "late", tool: "Read")])).subagents.map(\.id), ["late"])
     }
 
     func testStopFailureError() throws {
@@ -155,7 +190,7 @@ final class SessionReducerTests: XCTestCase {
         ]))
         XCTAssertEqual(s.state, .done)
         XCTAssertNil(s.detail)
-        XCTAssertEqual(s.subagents, 0)
+        XCTAssertEqual(s.subagents, [])
         XCTAssertEqual(s.stateSince, t0.addingTimeInterval(10))
     }
 

@@ -9,10 +9,13 @@ public struct DiscoveredProcess: Equatable, Sendable {
     public var startedAt: Date?
     public var record: SessionRecord?
     public var host: SessionHost?
+    /// Claude only, from the transcript, launch flags or settings (`PermissionModeReader`).
+    public var permissionMode: PermissionMode?
 
     public init(pid: Int32, agent: AgentKind, cwd: String?, startedAt: Date?, record: SessionRecord? = nil,
-                host: SessionHost? = nil) {
+                host: SessionHost? = nil, permissionMode: PermissionMode? = nil) {
         self.host = host
+        self.permissionMode = permissionMode
         self.pid = pid
         self.agent = agent
         self.cwd = cwd
@@ -81,7 +84,18 @@ public struct SessionDiscovery: Sendable {
             }
         }
         let matches = SessionCorrelator.match(found, records: records, exact: exact)
-        for index in found.indices { found[index].record = matches[found[index].pid] }
+        let arguments = Dictionary(agentProcesses.map { ($0.0.pid, $0.0.arguments) }, uniquingKeysWith: { first, _ in first })
+        let defaultRoot = ClaudeConfigPaths.configRoot(environment: environment)
+        for index in found.indices {
+            let record = matches[found[index].pid]
+            found[index].record = record
+            guard found[index].agent == .claude else { continue }
+            let transcript = record.flatMap { $0.path.hasSuffix(".jsonl") ? URL(filePath: $0.path) : nil }
+            found[index].permissionMode = PermissionModeReader.claudeMode(
+                arguments: arguments[found[index].pid] ?? [], transcript: transcript, startedAt: found[index].startedAt,
+                cwd: found[index].cwd,
+                configRoot: record.flatMap { PermissionModeReader.configRoot(ofTranscript: $0.path) } ?? defaultRoot)
+        }
         return found
     }
 

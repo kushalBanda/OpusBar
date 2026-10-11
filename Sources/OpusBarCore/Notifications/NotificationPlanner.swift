@@ -22,6 +22,14 @@ public struct SessionNotice: Equatable, Sendable {
     public let body: String
     /// Notification Center stacks notices with the same thread: one stack per project folder.
     public var thread: String = ""
+
+    public init(sessionId: String, state: SessionState, title: String, body: String, thread: String = "") {
+        self.sessionId = sessionId
+        self.state = state
+        self.title = title
+        self.body = body
+        self.thread = thread
+    }
 }
 
 /// Decides notifications from a before/after pair of session states. Pure, like the reducer.

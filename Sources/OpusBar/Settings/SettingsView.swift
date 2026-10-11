@@ -304,21 +304,30 @@ struct NotificationsPane: View {
     let notifier: SessionNotifier
     let usage: UsageModel
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             PaneTitle(title: "Notifications",
                       lead: "Get a macOS notification when a session changes or a plan limit runs low or resets. macOS asks for permission the first time.")
+            // A blocked permission silences every switch below, so it leads the pane.
+            if let problem = accessProblem {
+                problem.padding(.bottom, 8).transition(.opacity)
+            }
             Tile {
                 row(.needsAttention, "A session needs you", "Permission prompts and questions.", $preferences.notifyNeedsYou)
                 Divider().opacity(0.5)
                 row(.error, "A session hits an error", nil, $preferences.notifyError)
                 Divider().opacity(0.5)
-                row(.done, "A session finishes", "Off by default. Can get chatty with many sessions.", $preferences.notifyDone)
+                row(.done, "A session finishes", "Each turn that ends, so you can come back to it.", $preferences.notifyDone)
             }
             limitResets.padding(.top, 8)
-            accessNote.padding(.top, 12)
+            footer.padding(.top, 12)
         }
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: notifier.access)
         .onAppear { notifier.refreshAccess() }
+        // Back from System Settings: show what the user just changed there.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in notifier.refreshAccess() }
         .onChange(of: preferences.anyNotificationOn) { _, on in if on { notifier.requestAccess() } }
     }
 
@@ -375,21 +384,61 @@ struct NotificationsPane: View {
         .padding(.vertical, 8)
     }
 
-    @ViewBuilder
-    private var accessNote: some View {
+    /// What stops notices from showing, with the one action that fixes it. Nil when nothing does.
+    private var accessProblem: AnyView? {
         switch notifier.access {
+        case .notAsked:
+            AnyView(problemTile(Theme.yellow, "Notifications aren't allowed yet",
+                                "macOS hasn't had an answer from you, so OpusBar can't show anything.",
+                                action: "Allow Notifications") { notifier.askNow() })
         case .denied:
-            HStack {
-                Text("Notifications are off for OpusBar in System Settings.").font(Theme.font(12, .regular)).opacity(0.72)
-                Button("Open Notification Settings") {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension") {
-                        NSWorkspace.shared.open(url)
-                    }
+            AnyView(problemTile(Theme.red, "macOS is blocking OpusBar's notifications",
+                                "Turn on Allow notifications for OpusBar in System Settings. The switches here don't override it.",
+                                action: "Open System Settings", perform: openSystemSettings))
+        case .silent:
+            AnyView(problemTile(Theme.yellow, "Notifications won't pop up",
+                                "OpusBar's alert style is None, so notices go straight to Notification Center. Choose Banners or Alerts.",
+                                action: "Open System Settings", perform: openSystemSettings))
+        case .unavailable:
+            AnyView(Text("Notifications only work from OpusBar.app, not `swift run`.").font(Theme.font(12, .regular)).opacity(0.5))
+        case .allowed:
+            nil
+        }
+    }
+
+    private func problemTile(_ fill: Color, _ title: String, _ detail: String, action: String,
+                             perform: @escaping () -> Void) -> some View {
+        Tile(fill: fill, onColor: true) {
+            HStack(alignment: .center, spacing: 14) {
+                Image(systemName: "bell.slash.fill").font(.system(size: 20))
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.tileLight.opacity(0.6)))
+                    .accessibilityHidden(true)
+                TileHeading(title: title, subtitle: detail)
+                Spacer(minLength: 8)
+                Button(action, action: perform)
+                    .buttonStyle(.borderedProminent).tint(Theme.onColor).controlSize(.large)
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func openSystemSettings() {
+        if let url = SessionNotifier.settingsURL { NSWorkspace.shared.open(url) }
+    }
+
+    /// A test checks the whole path, from permission to how macOS presents it.
+    private var footer: some View {
+        HStack(spacing: 12) {
+            Button { notifier.sendTest() } label: {
+                switch notifier.testState {
+                case .ready: Text("Send a Test Notification")
+                case .sending: Text("Sending…")
+                case .sent: Label("Sent", systemImage: "checkmark")
                 }
             }
-        case .unavailable:
-            Text("Notifications only work from OpusBar.app, not `swift run`.").font(Theme.font(12, .regular)).opacity(0.5)
-        case .notAsked, .allowed:
+            .disabled(notifier.access == .unavailable || notifier.testState != .ready)
+            .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: notifier.testState)
             Text("Clicking a notification opens the OpusBar menu.").font(Theme.font(12, .regular)).opacity(0.5)
         }
     }

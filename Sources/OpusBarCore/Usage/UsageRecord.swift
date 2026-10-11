@@ -46,6 +46,8 @@ public struct UsageRecord: Equatable, Sendable {
     /// folder, else the folder's own name).
     public var project: String
     public var session: String
+    /// The subagent that made the reply (Claude's `agentId` in a subagent transcript); empty for the main thread.
+    public var agentId: String = ""
     /// The folder of the account that made the reply (Claude profile or Codex home), canonical path. Set by
     /// the store; empty when unknown.
     public var account: String = ""

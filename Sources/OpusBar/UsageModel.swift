@@ -21,6 +21,9 @@ final class UsageModel {
     /// Claude accounts first. Empty when none is known.
     private(set) var limits: [UsageLimits] = []
 
+    /// Per agent session (hook session id), for the cards. Sessions active in the last few days only.
+    private(set) var sessions: [String: SessionUsage] = [:]
+
     @ObservationIgnored private let worker: UsageWorker
 
     init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
@@ -31,11 +34,12 @@ final class UsageModel {
 
     /// First scan, then watching.
     func start() {
-        worker.start { [weak self] summaries, limits in
+        worker.start { [weak self] summaries, limits, sessions in
             guard let self else { return }
             Task { @MainActor in
                 if self.summaries != summaries { self.summaries = summaries }
                 if self.limits != limits { self.limits = limits }
+                if self.sessions != sessions { self.sessions = sessions }
             }
         }
     }
@@ -66,7 +70,9 @@ private final class UsageWorker: @unchecked Sendable {
     private var watching: [String] = []
     /// A refresh is queued and not yet run: further requests join it.
     private var refreshQueued = false
-    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void)?
+    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits], [String: SessionUsage]) -> Void)?
+    /// A session idle longer than this is off the cards by then (finished sessions leave within an hour at most).
+    static let sessionHorizon: TimeInterval = 3 * 86_400
     private let claudeLimits: ClaudeCodeLimitsReader
     /// Windows renew, and Claude Code rewrites its cache and the hook its live limits, without a log changing:
     /// look again every 15 s.
@@ -80,7 +86,7 @@ private final class UsageWorker: @unchecked Sendable {
                                               liveFile: { paths.liveLimitsFile(profileRoot: $0.path) })
     }
 
-    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits]) -> Void) {
+    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits], [String: SessionUsage]) -> Void) {
         queue.async { [self] in
             self.publish = publish
             let clock = DispatchSource.makeTimerSource(queue: queue)
@@ -155,6 +161,6 @@ private final class UsageWorker: @unchecked Sendable {
         for range in ranges {
             summaries[range] = UsageSummary.make(records: records, range: range, now: now, names: claudeLimits.emails)
         }
-        publish?(summaries, limits)
+        publish?(summaries, limits, SessionUsage.make(records: records, activeSince: now.addingTimeInterval(-Self.sessionHorizon)))
     }
 }

@@ -31,12 +31,13 @@ public enum ClaudeUsageParser {
         case (false, true): "claude:\(session):\(messageId)"
         default: "claude:\(session):\(date.timeIntervalSince1970)"
         }
-        let record = UsageRecord(agent: .claude, date: date, model: model,
+        var record = UsageRecord(agent: .claude, date: date, model: model,
                                  project: (json["cwd"] as? String).map(projectFolder) ?? "",
                                  session: session, tokens: tokens,
                                  fast: usage["speed"] as? String == "fast",
                                  usOnly: usage["inference_geo"] as? String == "us",
                                  webSearches: int((usage["server_tool_use"] as? [String: Any])?["web_search_requests"]))
+        record.agentId = json["agentId"] as? String ?? ""
         return (key, record)
     }
 

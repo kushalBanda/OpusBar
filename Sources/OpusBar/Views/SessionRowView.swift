@@ -12,6 +12,8 @@ struct SessionRowView: View {
     var isExpanded = false
     /// Whether this session's agent already has OpusBar hooks, which changes the hint for found-running rows.
     var agentConnected = false
+    /// Tokens and cost logged under this session so far, subagents included; nil until the logs are read.
+    var usage: SessionUsage?
     var onTap: () -> Void = {}
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -28,12 +30,18 @@ struct SessionRowView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             summary
+            if !session.subagents.isEmpty {
+                SubagentList(subagents: session.subagents, now: now, secondary: secondary, showsAll: isExpanded,
+                             usage: usage?.bySubagent ?? [:])
+                    .transition(.opacity)
+            }
             if isExpanded || detailsLeaving {
                 SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected)
                     .opacity(isExpanded ? 1 : 0)
                     .transition(.opacity)
             }
         }
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: session.subagents.map(\.id))
         .onChange(of: isExpanded) { _, expanded in
             guard !expanded, !reduceMotion else { return }
             detailsLeaving = true
@@ -58,11 +66,18 @@ struct SessionRowView: View {
                 HStack(spacing: 6) {
                     Text(session.projectName).font(Theme.font(13, .semibold)).lineLimit(1).layoutPriority(1)
                     AgentMark(agent: session.agent)
+                    if let mode = session.permissionMode, !mode.isDefault {
+                        ModeMark(mode: mode, onLoudTile: isLoud)
+                            .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.85, anchor: .leading)))
+                    }
                     if showsBranch, let branch = session.branch {
                         Text(branch).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1).truncationMode(.middle)
                     }
                 }
                 Text(detailLine).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1)
+                if let total = usage?.total, total.replies > 0 {
+                    UsageMetrics(total: total, secondary: secondary).padding(.top, 2)
+                }
             }
             .layoutPriority(1)
             Spacer(minLength: 4)
@@ -73,7 +88,9 @@ struct SessionRowView: View {
                 .frame(maxHeight: .infinity, alignment: .top)
                 .help(timerHelp)
         }
-.accessibilityElement(children: .combine)
+        // Shift+Tab in the agent swaps the badge in place: critically damped, no bounce.
+        .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: session.permissionMode)
+        .accessibilityElement(children: .combine)
     }
 
     private var secondary: AnyShapeStyle {
@@ -81,9 +98,8 @@ struct SessionRowView: View {
     }
 
     private var detailLine: String {
-        let extras = [session.detail, session.subagents > 0 ? "\(session.subagents) subagent\(session.subagents == 1 ? "" : "s")" : nil]
-            .compactMap { $0 }
-            .joined(separator: ", ")
+        // Subagents have their own rows below.
+        let extras = session.detail ?? ""
         // Discovered rows have no live state until the agent's hooks report in.
         let label = [Self.label(for: session), session.distinctTitle, session.host?.appName]
             .compactMap { $0 }.joined(separator: " · ")
@@ -134,6 +150,7 @@ private struct SessionDetails: View {
                 row("Folder", Self.tildePath(session.cwd))
                 if let branch = session.branch { row("Branch", branch) }
                 if let title = session.title { row("Session", title) }
+                if let mode = session.permissionMode { row("Mode", mode.label) }
                 if let place = session.host?.label ?? session.term?.termProgram.map(Self.terminalName) { row("Where", place) }
                 row("Started", "\(ElapsedFormat.short(from: session.startedAt, to: now)) ago")
                 row("Last activity", "\(ElapsedFormat.short(from: session.lastEventAt, to: now)) ago")
@@ -177,6 +194,156 @@ private struct SessionDetails: View {
         case "WarpTerminal": "Warp"
         case "ghostty": "Ghostty"
         default: program
+        }
+    }
+}
+
+/// The session's spend on the card face, glyph then figure: ↑ new input, ↓ output, ⛁r cache read, then dollars.
+/// Claude Code caches every prompt up to its last token, so the API's `input_tokens` stays at a few per reply
+/// while prompts and tool results arrive as cache writes: ↑ adds the two, the input the model saw for the
+/// first time. Cache reads are the conversation re-read each reply. Counts include subagents.
+private struct UsageMetrics: View {
+    let total: UsageTotals
+    let secondary: AnyShapeStyle
+
+    var body: some View {
+        // Wide gaps between figures, tight glyph-to-figure pairs: each pair reads as one unit.
+        HStack(spacing: 14) {
+            metric(Image(systemName: "arrow.up"), UsageFormat.tokens(newInput), "New input tokens",
+                   help: "New input: \(Self.exact(total.tokens.input)) fresh + \(Self.exact(total.tokens.cacheWrite)) written to cache. Prompts and tool results.")
+            metric(Image(systemName: "arrow.down"), UsageFormat.tokens(total.tokens.output), "Output tokens")
+            metric(CacheGlyph(), UsageFormat.tokens(total.tokens.cacheRead), "Cache read tokens",
+                   help: "Cache read: the conversation so far, re-read from cache with each reply.")
+            // The dollar sign is the glyph; a "+" says some replies had no known price.
+            Text(UsageFormat.cost(total.cost) + (total.unpriced > 0 ? "+" : ""))
+                .font(Theme.font(10, .semibold).monospacedDigit())
+                .help(total.unpriced > 0
+                      ? "Cost at API prices, subagents included. \(total.unpriced) replies from a model without a known price are left out."
+                      : "Cost at API prices, subagents included.")
+                .accessibilityLabel("Cost \(UsageFormat.cost(total.cost))")
+        }
+        .lineLimit(1)
+        .fixedSize()
+        .foregroundStyle(secondary)
+    }
+
+    private var newInput: Int { total.tokens.input + total.tokens.cacheWrite }
+
+    private static func exact(_ count: Int) -> String { count.formatted(.number) }
+
+    private func metric(_ glyph: some View, _ value: String, _ name: String, help: String? = nil) -> some View {
+        HStack(spacing: 3) {
+            glyph.font(.system(size: 8, weight: .bold)).accessibilityHidden(true)
+            Text(value).font(Theme.font(10).monospacedDigit())
+        }
+        .help(help ?? name)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("\(name): \(value)")
+    }
+}
+
+/// A cache read: a database cylinder with a small "r" set low at its right, like a subscript.
+private struct CacheGlyph: View {
+    var body: some View {
+        HStack(alignment: .lastTextBaseline, spacing: 1) {
+            Image(systemName: "cylinder")
+            Text("r").font(.system(size: 7, weight: .heavy, design: .rounded)).baselineOffset(-1.5)
+        }
+    }
+}
+
+/// The session's live subagents under its summary: kind, task, what it runs now, how long it has run.
+/// Collapsed cards list three and count the rest; expanded cards list all, with each one's cost.
+private struct SubagentList: View {
+    let subagents: [Subagent]
+    let now: Date
+    let secondary: AnyShapeStyle
+    let showsAll: Bool
+    let usage: [String: UsageTotals]
+
+    private static let collapsedLimit = 3
+
+    var body: some View {
+        let shown = showsAll ? subagents : Array(subagents.prefix(Self.collapsedLimit))
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(shown) { row($0).transition(.opacity) }
+            if shown.count < subagents.count {
+                Text("+\(subagents.count - shown.count) more").font(Theme.font(10, .regular)).foregroundStyle(secondary)
+            }
+        }
+        .padding(.leading, 52) // lines up with the text column, past the cat tile
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(subagents.count) subagent\(subagents.count == 1 ? "" : "s")")
+    }
+
+    private func row(_ subagent: Subagent) -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(subagent.tool == nil ? AnyShapeStyle(secondary) : AnyShapeStyle(Theme.blue))
+                .frame(width: 6, height: 6)
+                .accessibilityHidden(true)
+            Text(subagent.typeLabel).font(Theme.font(11, .semibold)).lineLimit(1).fixedSize()
+            if let description = subagent.description {
+                Text(description).font(Theme.font(11, .regular)).foregroundStyle(secondary)
+                    .lineLimit(1).truncationMode(.tail)
+            }
+            Spacer(minLength: 4)
+            Text(subagent.tool ?? "Thinking").font(Theme.font(10, .regular)).foregroundStyle(secondary).lineLimit(1).fixedSize()
+            if showsAll, let cost = usage[subagent.id], cost.replies > 0 {
+                Text(UsageFormat.cost(cost.cost)).font(Theme.font(10).monospacedDigit()).foregroundStyle(secondary).fixedSize()
+            }
+            Text(ElapsedFormat.short(from: subagent.startedAt, to: now))
+                .font(Theme.font(10).monospacedDigit()).foregroundStyle(secondary).fixedSize()
+        }
+        .accessibilityElement(children: .combine)
+        .help(subagent.description.map { "\(subagent.typeLabel): \($0)" } ?? subagent.typeLabel)
+    }
+}
+
+/// The mode the session runs in, when it isn't Manual: symbol and name in a soft capsule beside the agent.
+/// Bypass gets a red symbol on calm tiles, since nothing asks before it acts.
+struct ModeMark: View {
+    let mode: PermissionMode
+    var onLoudTile = false
+
+    var body: some View {
+        HStack(spacing: 3) {
+            Image(systemName: symbol)
+                .font(.system(size: 8, weight: .bold))
+                .foregroundStyle(mode.isUnguarded && !onLoudTile ? AnyShapeStyle(Theme.red) : AnyShapeStyle(.primary))
+            Text(mode.label).font(Theme.font(10, .semibold)).lineLimit(1)
+        }
+        .fixedSize()
+        .padding(.horizontal, 5)
+        .padding(.vertical, 1)
+        .background(Capsule().fill(Color.primary.opacity(onLoudTile ? 0.12 : 0.08)))
+        .opacity(0.85)
+        .help(help)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Mode: \(mode.label)")
+    }
+
+    private var symbol: String {
+        switch mode {
+        case .manual: "hand.raised"
+        case .acceptEdits: "pencil"
+        case .plan: "list.bullet"
+        case .auto: "bolt.fill"
+        case .dontAsk: "hand.raised.slash"
+        case .bypassPermissions: "exclamationmark.shield.fill"
+        case .other: "slider.horizontal.3"
+        }
+    }
+
+    private var help: String {
+        switch mode {
+        case .manual: "Asks before edits and commands."
+        case .acceptEdits: "Edits files without asking; still asks before commands."
+        case .plan: "Plans only: reads and proposes, doesn't change anything."
+        case .auto: "Decides for itself which actions need your OK."
+        case .dontAsk: "Never asks; anything not already allowed is refused."
+        case .bypassPermissions: "Skips every permission check."
+        case .other(let raw): "Mode reported by the agent: \(raw)."
         }
     }
 }

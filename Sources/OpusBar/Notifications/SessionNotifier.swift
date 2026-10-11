@@ -1,6 +1,7 @@
 import AppKit
 import Observation
 import OpusBarCore
+import os
 import UserNotifications
 
 /// Posts macOS notifications when sessions enter needs-you, error or done (per the user's toggles).
@@ -13,10 +14,20 @@ final class SessionNotifier: NSObject {
         case unavailable
         case notAsked
         case allowed
+        /// Allowed, but macOS shows nothing: the alert style is None, so notices land only in Notification Center.
+        case silent
         case denied
     }
 
+    nonisolated static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "OpusBar", category: "notifications")
+
+    /// The Settings test button: one test at a time, then a short "Sent" before it can go again.
+    enum TestState: Equatable {
+        case ready, sending, sent
+    }
+
     private(set) var access: Access = .notAsked
+    private(set) var testState: TestState = .ready
 
     @ObservationIgnored private let store: SessionStore
     @ObservationIgnored private let preferences: Preferences
@@ -54,9 +65,18 @@ final class SessionNotifier: NSObject {
         center.getNotificationSettings { settings in
             guard settings.authorizationStatus == .notDetermined else { return }
             center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-                if let error { NSLog("OpusBar: notification permission failed: \(error)") }
-                Task { @MainActor in self.access = granted ? .allowed : .denied }
+                Self.logAuthorization(granted: granted, error: error)
+                Task { @MainActor in self.refreshAccess() }
             }
+        }
+    }
+
+    /// The Settings button for a prompt the user never answered: asks again, then reads what macOS decided.
+    func askNow() {
+        guard let center else { return }
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            Self.logAuthorization(granted: granted, error: error)
+            Task { @MainActor in self.refreshAccess() }
         }
     }
 
@@ -66,9 +86,49 @@ final class SessionNotifier: NSObject {
             let access: Access = switch settings.authorizationStatus {
             case .notDetermined: .notAsked
             case .denied: .denied
-            default: .allowed
+            default: settings.alertStyle == .none ? .silent : .allowed
             }
             Task { @MainActor in self.access = access }
+        }
+    }
+
+    /// Settings' "Send a test": a needs-you notice through the same path as real ones. Repeated clicks
+    /// are ignored until the last test is out and a short pause has passed; every test shares one
+    /// identifier, so even a fast second one replaces the first instead of stacking.
+    func sendTest() {
+        guard let center, testState == .ready else { return }
+        testState = .sending
+        let notice = SessionNotice(sessionId: "test", state: .needsAttention, title: "OpusBar needs you",
+                                   body: "Claude Code · This is a test notification", thread: "test")
+        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+            Self.logAuthorization(granted: granted, error: error)
+            Task { @MainActor in
+                self.refreshAccess()
+                // Not allowed: the access tile says why, so the button is ready again at once.
+                guard granted else { self.testState = .ready; return }
+                self.post(notice, center: center) { delivered in
+                    self.testState = delivered ? .sent : .ready
+                    guard delivered else { return }
+                    Task { @MainActor in
+                        try? await Task.sleep(for: .seconds(2))
+                        self.testState = .ready
+                    }
+                }
+            }
+        }
+    }
+
+    /// The deep link to OpusBar's own row in System Settings > Notifications.
+    static var settingsURL: URL? {
+        let id = Bundle.main.bundleIdentifier.map { "?id=" + $0 } ?? ""
+        return URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension" + id)
+    }
+
+    nonisolated private static func logAuthorization(granted: Bool, error: Error?) {
+        if let error {
+            log.error("permission request failed: \(error.localizedDescription, privacy: .public)")
+        } else if !granted {
+            log.notice("permission not granted; notices are dropped until it is turned on in System Settings")
         }
     }
 
@@ -89,16 +149,17 @@ final class SessionNotifier: NSObject {
         let posts = isMenuShown() ? [] : plan.post
         guard !posts.isEmpty else { return }
         center.requestAuthorization(options: [.alert, .sound]) { granted, error in
-            if let error { NSLog("OpusBar: notification permission failed: \(error)") }
+            Self.logAuthorization(granted: granted, error: error)
             Task { @MainActor in
-                self.access = granted ? .allowed : .denied
+                self.refreshAccess()
                 guard granted else { return }
                 posts.forEach { self.post($0, center: center) }
             }
         }
     }
 
-    private func post(_ notice: SessionNotice, center: UNUserNotificationCenter) {
+    private func post(_ notice: SessionNotice, center: UNUserNotificationCenter,
+                      completion: @escaping @MainActor (Bool) -> Void = { _ in }) {
         let content = UNMutableNotificationContent()
         content.title = notice.title
         content.body = notice.body
@@ -109,7 +170,8 @@ final class SessionNotifier: NSObject {
             content.attachments = [cat]
         }
         center.add(UNNotificationRequest(identifier: Self.identifier(notice.sessionId), content: content, trigger: nil)) { error in
-            if let error { NSLog("OpusBar: notification post failed: \(error)") }
+            if let error { Self.log.error("post failed: \(error.localizedDescription, privacy: .public)") }
+            Task { @MainActor in completion(error == nil) }
         }
     }
 

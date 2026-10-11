@@ -9,6 +9,11 @@ public enum SessionPruner {
         isAlive: (Int32) -> Bool
     ) -> SessionsState {
         var state = state
+        for (id, session) in state.byId where session.subagents.contains(where: { now.timeIntervalSince($0.lastEventAt) >= Subagent.staleAfter }) {
+            var session = session
+            session.subagents.removeAll { now.timeIntervalSince($0.lastEventAt) >= Subagent.staleAfter }
+            state.byId[id] = session
+        }
         state.byId = state.byId.filter { _, session in
             // The Claude process is gone: the session cannot produce more events.
             if let pid = session.pid, !isAlive(pid) { return false }
