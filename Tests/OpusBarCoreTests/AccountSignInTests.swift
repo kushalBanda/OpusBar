@@ -142,4 +142,14 @@ final class AccountSignInTests: XCTestCase {
         send("d", "/nonexistent/.claude/projects/-tmp-p/d.jsonl", nil, ts: 4)
         XCTAssertNil(store.signInByAccount["claude:/nonexistent/.claude"], "a plain session hands the profile back to its files")
     }
+
+    func testSessionBillingFallsBackToItsProfile() {
+        var session = Session(id: "s", cwd: "/tmp", startedAt: Date())
+        session.transcriptPath = "/nonexistent/.claude/projects/-tmp/s.jsonl"
+        let profile = AccountSignIn(agent: .claude, root: "/nonexistent/.claude", label: nil, method: .apiKey)
+        XCTAssertEqual(AccountSignIn.billing(of: session, accounts: [profile]), .apiKey)
+        session.signIn = .bedrock
+        XCTAssertEqual(AccountSignIn.billing(of: session, accounts: [profile]), .bedrock, "the session's own environment wins")
+        XCTAssertNil(AccountSignIn.billing(of: Session(id: "t", cwd: "/tmp", startedAt: Date()), accounts: [profile]))
+    }
 }

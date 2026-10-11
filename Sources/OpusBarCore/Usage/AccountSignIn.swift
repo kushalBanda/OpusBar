@@ -35,6 +35,14 @@ public struct AccountSignIn: Equatable, Sendable, Identifiable {
         return result
     }
 
+    /// How a session pays: what its own environment reported, else its profile's or home's sign-in.
+    public static func billing(of session: Session, accounts: [AccountSignIn]) -> SignInMethod? {
+        if let signIn = session.signIn { return signIn }
+        guard let path = session.transcriptPath, let root = root(ofTranscript: path, agent: session.agent) else { return nil }
+        let canonical = UsageLogReader.canonical(root)
+        return accounts.first { $0.agent == session.agent && $0.root == canonical }?.method
+    }
+
     /// The profile or home folder's name: what tells apart two Claude profiles signed in with one email.
     public var folder: String { AccountFolder.name(root) }
 

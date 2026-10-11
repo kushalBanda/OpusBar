@@ -6,44 +6,117 @@ import SwiftUI
 struct AgentLogo: View {
     let agent: AgentKind
     var size: CGFloat = 12
+    /// In place of the series color, e.g. charcoal on a yellow or red tile.
+    var tint: Color?
 
     var body: some View {
         if let image = Self.image(for: agent) {
             Image(nsImage: image).renderingMode(.template).resizable().scaledToFit()
-                .foregroundStyle(Theme.agent(agent)).frame(width: size, height: size)
+                .foregroundStyle(tint ?? Theme.agent(agent)).frame(width: size, height: size)
         } else {
-            Circle().fill(Theme.agent(agent)).frame(width: size * 0.6, height: size * 0.6)
+            Circle().fill(tint ?? Theme.agent(agent)).frame(width: size * 0.6, height: size * 0.6)
                 .frame(width: size, height: size)
         }
     }
 
-    private static let cache = LockedImages()
-
     private static func image(for agent: AgentKind) -> NSImage? {
-        cache.image(named: agent.rawValue) {
-            guard let url = url(for: agent.rawValue) else { return nil }
-            return NSImage(contentsOf: url)
-        }
-    }
-
-    /// Packaged app: Contents/Resources. `swift run`: the SwiftPM resource bundle next to the executable.
-    private static func url(for name: String) -> URL? {
-        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "AgentLogos") { return url }
-        let dev = Bundle.main.bundleURL.appending(path: "OpusBar_OpusBar.bundle")
-        return Bundle(url: dev)?.url(forResource: name, withExtension: "png", subdirectory: "AgentLogos")
+        LogoImages.shared.image(named: agent.rawValue, in: "AgentLogos")
     }
 }
 
-private final class LockedImages: @unchecked Sendable {
-    private let lock = NSLock()
-    private var images: [String: NSImage] = [:]
+/// How a session pays, as a small mark: the cloud's own colored logo for Bedrock, Vertex AI and Foundry; a
+/// symbol in the text color for a plan, API billing and a custom endpoint.
+struct BillingLogo: View {
+    let billing: SignInMethod
+    var size: CGFloat = 10
 
-    func image(named name: String, load: () -> NSImage?) -> NSImage? {
+    var body: some View {
+        if let image = LogoImages.shared.image(named: billing.rawValue, in: "BillingLogos") {
+            Image(nsImage: image).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
+        } else {
+            Image(systemName: Self.symbol(for: billing))
+                .font(.system(size: size * 0.8, weight: .bold))
+                .frame(width: size, height: size)
+                .opacity(0.85)
+        }
+    }
+
+    static func symbol(for billing: SignInMethod) -> String {
+        switch billing {
+        case .subscription: "arrow.triangle.2.circlepath"
+        case .apiKey: "key.fill"
+        case .gateway: "point.3.connected.trianglepath.dotted"
+        case .bedrock, .vertex, .foundry: "cloud.fill"
+        }
+    }
+}
+
+/// Who runs a session, large, with how it pays as a badge in its lower corner, like an app icon's badge.
+/// The agent's logo is cut away around the badge so the two never touch, on any tile color.
+struct AgentMark: View {
+    let agent: AgentKind
+    var billing: SignInMethod?
+    var size: CGFloat = 18
+    /// Charcoal agent logo on a yellow or red tile, where its series color would fade.
+    var tint: Color?
+
+    private var badge: CGFloat { (size * 0.62).rounded() }
+    /// How far the badge hangs past the logo's corner.
+    private var overhang: CGFloat { (size * 0.25).rounded() }
+    private static let gap: CGFloat = 1.5
+
+    var body: some View {
+        AgentLogo(agent: agent, size: size, tint: tint)
+            .mask {
+                if billing != nil {
+                    Rectangle()
+                        .overlay(alignment: .bottomTrailing) {
+                            Circle()
+                                .frame(width: badge + Self.gap * 2, height: badge + Self.gap * 2)
+                                .offset(x: overhang + Self.gap, y: overhang + Self.gap)
+                                .blendMode(.destinationOut)
+                        }
+                        .compositingGroup()
+                } else {
+                    Rectangle()
+                }
+            }
+            .overlay(alignment: .bottomTrailing) {
+                if let billing { BillingLogo(billing: billing, size: badge).offset(x: overhang, y: overhang) }
+            }
+            // Room for the badge on every mark, so agent logos line up down the list, badged or not.
+            .padding([.trailing, .bottom], overhang)
+            .help(help)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(help)
+    }
+
+    private var help: String {
+        guard let billing else { return agent.displayName }
+        return "\(agent.displayName) · \(billing.hasPlanLimits ? billing.label : "\(billing.label), billed per use")"
+    }
+}
+
+/// Bundled logos, loaded once. Packaged app: Contents/Resources/<folder>. `swift run`: the SwiftPM resource
+/// bundle next to the executable.
+private final class LogoImages: @unchecked Sendable {
+    static let shared = LogoImages()
+    private let lock = NSLock()
+    private var images: [String: NSImage?] = [:]
+
+    func image(named name: String, in folder: String) -> NSImage? {
         lock.lock()
         defer { lock.unlock() }
-        if let cached = images[name] { return cached }
-        let image = load()
-        images[name] = image
+        let key = "\(folder)/\(name)"
+        if let cached = images[key] { return cached }
+        let image = Self.url(for: name, in: folder).flatMap(NSImage.init(contentsOf:))
+        images[key] = image
         return image
+    }
+
+    private static func url(for name: String, in folder: String) -> URL? {
+        if let url = Bundle.main.url(forResource: name, withExtension: "png", subdirectory: folder) { return url }
+        let dev = Bundle.main.bundleURL.appending(path: "OpusBar_OpusBar.bundle")
+        return Bundle(url: dev)?.url(forResource: name, withExtension: "png", subdirectory: folder)
     }
 }

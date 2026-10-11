@@ -122,7 +122,7 @@ private struct PerUseCard: View {
             CardHeader(title: "Billed per use", symbol: "creditcard")
             ForEach(accounts) { account in
                 HStack(spacing: 6) {
-                    AgentLogo(agent: account.agent, size: 13)
+                    AgentMark(agent: account.agent, billing: account.method, size: 14)
                     // Claude profiles often share one email (a Bedrock shell and a Pro login): the folder tells them apart.
                     let name = account.agent == .claude ? account.folder : account.label.map { $0.split(separator: "@").first.map(String.init) ?? $0 }
                     if let name {
