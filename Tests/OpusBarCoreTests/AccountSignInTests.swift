@@ -156,6 +156,22 @@ final class AccountSignInTests: XCTestCase {
         XCTAssertEqual(saved, ["claude:/nonexistent/.claude": .bedrock])
     }
 
+    func testAccountRowsAreNamedForHowTheyPay() {
+        let totals = UsageTotals()
+        let shares = [
+            UsageShare(id: "1", name: "me@x.com", agent: .claude, totals: totals, account: "/nonexistent/.claude"),
+            UsageShare(id: "2", name: "old@x.com", agent: .claude, totals: totals, account: "/nonexistent/.claude-work"),
+            UsageShare(id: "3", name: "elsewhere", agent: .claude, totals: totals, account: "/nonexistent/.claude-x"),
+        ]
+        let accounts = [
+            AccountSignIn(agent: .claude, root: "/nonexistent/.claude", label: "me@x.com", method: .subscription),
+            AccountSignIn(agent: .claude, root: "/nonexistent/.claude-work", label: "old@x.com", method: .bedrock),
+        ]
+        XCTAssertEqual(AccountSignIn.named(shares, accounts: accounts).map(\.name),
+                       ["me@x.com · Subscription", "claude-work · Bedrock", "elsewhere"])
+        XCTAssertEqual(AccountSignIn.named(shares, accounts: accounts, short: true).first?.name, "me · Subscription")
+    }
+
     func testSessionBillingFallsBackToItsProfile() {
         var session = Session(id: "s", cwd: "/tmp", startedAt: Date())
         session.transcriptPath = "/nonexistent/.claude/projects/-tmp/s.jsonl"

@@ -35,7 +35,8 @@ struct UsageDropdownView: View {
 
     private func content(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 8) {
-            let perUse = AccountSignIn.merging(usage.signIns, remembered: remembered).filter { !$0.method.hasPlanLimits }
+            let accounts = AccountSignIn.merging(usage.signIns, remembered: remembered)
+            let perUse = accounts.filter { !$0.method.hasPlanLimits }
             if usage.limits.isEmpty && perUse.isEmpty {
                 UsageCard {
                     CardHeader(title: "Plan limits", symbol: "gauge.with.dots.needle.33percent")
@@ -52,7 +53,7 @@ struct UsageDropdownView: View {
             if let summary = usage.summaries[range] {
                 SpendCard(summary: summary)
                 if summary.hasSeveralAccounts {
-                    ShareCard(title: "Accounts", symbol: "person.2", shares: summary.byAccount.map(\.shortName),
+                    ShareCard(title: "Accounts", symbol: "person.2", shares: AccountSignIn.named(summary.byAccount, accounts: accounts, short: true),
                               byCost: summary.total.unpriced == 0, limit: 6)
                 }
                 if summary.total.replies > 0 {
@@ -383,15 +384,6 @@ private struct ShareCard: View {
                 }
             }
         }
-    }
-}
-
-private extension UsageShare {
-    /// An email without its domain: both accounts often share one, and the card is narrow.
-    var shortName: UsageShare {
-        var copy = self
-        copy.name = name.split(separator: "@").first.map(String.init) ?? name
-        return copy
     }
 }
 

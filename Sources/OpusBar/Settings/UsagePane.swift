@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 struct UsagePane: View {
     let usage: UsageModel
+    let store: SessionStore
     @State private var range: UsageRange = {
         #if DEBUG
         // `--usage-range <day|week|month|quarter>` opens that range, for screenshots.
@@ -76,7 +77,8 @@ struct UsagePane: View {
         }
         .fixedSize(horizontal: false, vertical: true)
         if summary.hasSeveralAccounts {
-            ShareList(title: "By account", shares: summary.byAccount)
+            ShareList(title: "By account", shares: AccountSignIn.named(
+                summary.byAccount, accounts: AccountSignIn.merging(usage.signIns, remembered: store.signInByAccount)))
         }
         ShareList(title: "By project", shares: summary.byProject)
     }
