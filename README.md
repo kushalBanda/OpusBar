@@ -14,7 +14,9 @@ Free and open source · macOS 14 or later · Apple silicon and Intel
 
 <br>
 
-https://github.com/user-attachments/assets/ecda9d51-1b1f-404a-af8e-831d05b4d2ab
+<a href="docs/assets/OpusBar.mp4"><img src="docs/assets/social-preview.png" width="820" alt="Watch the OpusBar demo video"></a>
+
+[▶ Watch the demo (OpusBar.mp4)](docs/assets/OpusBar.mp4)
 
 <br><br>
 
