@@ -131,7 +131,7 @@ struct SettingsView: View {
         case .general: GeneralPane(preferences: preferences, launchAtLogin: launchAtLogin)
         case .cat: CatPane(preferences: preferences)
         case .agents: AgentsSettingsView(model: hooks, store: store, usage: usage)
-        case .usage: UsagePane(usage: usage)
+        case .usage: UsagePane(usage: usage, store: store)
         case .notifications: NotificationsPane(preferences: preferences, notifier: notifier, usage: usage)
         case .about: AboutPane(updater: updater, preferences: preferences)
         }

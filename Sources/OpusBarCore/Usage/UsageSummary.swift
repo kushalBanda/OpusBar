@@ -41,6 +41,8 @@ public struct UsageShare: Equatable, Sendable, Identifiable {
     /// The agent behind the row, when there is exactly one.
     public var agent: AgentKind?
     public var totals: UsageTotals
+    /// An account row's folder (Claude profile, Codex home), so it can be named for how it pays.
+    public var account: String?
 }
 
 /// One bar of the trend: a local calendar day, or an hour in the 24 h range.
@@ -128,7 +130,8 @@ public struct UsageSummary: Equatable, Sendable {
         let byAgent = agents.map { UsageShare(id: $0.key.rawValue, name: $0.key.displayName, agent: $0.key, totals: $0.value) }
         let byAccount = accounts.map { id, value in
             let name = names[value.account] ?? (value.account.isEmpty ? "Unknown account" : AccountFolder.name(value.account))
-            return UsageShare(id: id, name: name, agent: value.agent, totals: value.totals)
+            return UsageShare(id: id, name: name, agent: value.agent, totals: value.totals,
+                              account: value.account.isEmpty ? nil : value.account)
         }
         let byModel = models.map { UsageShare(id: $0.key, name: $0.key, agent: $0.value.agent, totals: $0.value.totals) }
         var byProject = ranked(projects.map {

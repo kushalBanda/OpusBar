@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.14
+
+- Accounts in the Usage tab and in Settings › Usage say how each pays: "you@example.com · Subscription", "work · Bedrock". A profile on Bedrock, Vertex AI, Foundry or a custom endpoint goes by its folder, not the old claude.ai email it still holds.
+
 ## 0.1.13
 
 - Settings › Agents says how each profile pays: Subscription, API billing, Amazon Bedrock, Google Vertex AI, Microsoft Foundry or a custom endpoint. The email shows only where that account is what pays, not the old claude.ai login a Bedrock or Vertex profile still holds.

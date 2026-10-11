@@ -41,6 +41,24 @@ public struct AccountSignIn: Equatable, Sendable, Identifiable {
         return accounts.first { $0.agent == agent && $0.root == canonical }
     }
 
+    /// Account rows named for how each pays: "kushal@x.com · Subscription", "work · Bedrock". The email names a
+    /// plan or API billing; Bedrock, Vertex AI, Foundry and a custom endpoint go by the folder, since an email
+    /// left from an old claude.ai sign-in names nothing there. `short` drops the email's domain.
+    public static func named(_ shares: [UsageShare], accounts: [AccountSignIn], short: Bool = false) -> [UsageShare] {
+        shares.map { share in
+            var named = share
+            let signIn = share.agent.flatMap { agent in share.account.flatMap { find(agent: agent, root: $0, in: accounts) } }
+            var base = share.name
+            if let signIn {
+                let paysByAccount = signIn.method == .subscription || signIn.method == .apiKey
+                base = paysByAccount ? (signIn.label.flatMap { $0.contains("@") ? $0 : nil } ?? share.name) : signIn.folder
+            }
+            if short, base.contains("@") { base = base.split(separator: "@").first.map(String.init) ?? base }
+            named.name = signIn.map { "\(base) · \($0.method.shortLabel)" } ?? base
+            return named
+        }
+    }
+
     /// How a session pays: what its own environment reported, else its profile's or home's sign-in.
     public static func billing(of session: Session, accounts: [AccountSignIn]) -> SignInMethod? {
         if let signIn = session.signIn { return signIn }
