@@ -44,6 +44,7 @@ public enum SessionReducer {
         if let term = event.term { session.term = term }
         if let mode = PermissionMode(raw: e.permissionMode) { session.permissionMode = mode }
         if let path = e.transcriptPath, !path.isEmpty { session.transcriptPath = path }
+        if let signIn = event.signIn { session.signIn = signIn }
 
         // Inside a subagent: its own row moves, the parent's state doesn't. A background subagent keeps
         // working after the parent's Stop, and must not turn a finished session back to working.

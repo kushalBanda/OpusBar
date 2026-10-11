@@ -21,24 +21,29 @@ final class UsageModel {
     /// Claude accounts first. Empty when none is known.
     private(set) var limits: [UsageLimits] = []
 
+    /// How each Claude profile and Codex home is signed in, from their files; live sessions refine it
+    /// (`AccountSignIn.merging`).
+    private(set) var signIns: [AccountSignIn] = []
+
     /// Per agent session (hook session id), for the cards. Sessions active in the last few days only.
     private(set) var sessions: [String: SessionUsage] = [:]
 
     @ObservationIgnored private let worker: UsageWorker
 
-    init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
+    init(claudeRoots: @escaping @Sendable () -> [URL], codexHomes: @escaping @Sendable () -> [CodexHome],
          claudeAccountFiles: @escaping @Sendable () -> [ClaudeAccountFiles], prices: UsagePriceList = UsageModel.bundledPrices()) {
-        worker = UsageWorker(claudeRoots: claudeRoots, codexRoots: codexRoots, claudeAccountFiles: claudeAccountFiles,
+        worker = UsageWorker(claudeRoots: claudeRoots, codexHomes: codexHomes, claudeAccountFiles: claudeAccountFiles,
                              prices: prices)
     }
 
     /// First scan, then watching.
     func start() {
-        worker.start { [weak self] summaries, limits, sessions in
+        worker.start { [weak self] summaries, limits, signIns, sessions in
             guard let self else { return }
             Task { @MainActor in
                 if self.summaries != summaries { self.summaries = summaries }
                 if self.limits != limits { self.limits = limits }
+                if self.signIns != signIns { self.signIns = signIns }
                 if self.sessions != sessions { self.sessions = sessions }
             }
         }
@@ -70,23 +75,28 @@ private final class UsageWorker: @unchecked Sendable {
     private var watching: [String] = []
     /// A refresh is queued and not yet run: further requests join it.
     private var refreshQueued = false
-    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits], [String: SessionUsage]) -> Void)?
+    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits], [AccountSignIn], [String: SessionUsage]) -> Void)?
     /// A session idle longer than this is off the cards by then (finished sessions leave within an hour at most).
     static let sessionHorizon: TimeInterval = 3 * 86_400
     private let claudeLimits: ClaudeCodeLimitsReader
+    private let claudeAccountFiles: @Sendable () -> [ClaudeAccountFiles]
+    private let codexHomes: @Sendable () -> [CodexHome]
+    private let claudeSignIns = ClaudeSignIn.Reader()
     /// Windows renew, and Claude Code rewrites its cache and the hook its live limits, without a log changing:
     /// look again every 15 s.
     private var clock: DispatchSourceTimer?
 
-    init(claudeRoots: @escaping @Sendable () -> [URL], codexRoots: @escaping @Sendable () -> [URL],
+    init(claudeRoots: @escaping @Sendable () -> [URL], codexHomes: @escaping @Sendable () -> [CodexHome],
          claudeAccountFiles: @escaping @Sendable () -> [ClaudeAccountFiles], prices: UsagePriceList) {
-        store = UsageStore(claudeRoots: claudeRoots, codexRoots: codexRoots, prices: prices)
+        store = UsageStore(claudeRoots: claudeRoots, codexRoots: { UsageStore.codexRoots(homes: codexHomes()) }, prices: prices)
+        self.claudeAccountFiles = claudeAccountFiles
+        self.codexHomes = codexHomes
         let paths = OpusBarPaths.current()
         claudeLimits = ClaudeCodeLimitsReader(profiles: claudeAccountFiles,
                                               liveFile: { paths.liveLimitsFile(profileRoot: $0.path) })
     }
 
-    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits], [String: SessionUsage]) -> Void) {
+    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits], [AccountSignIn], [String: SessionUsage]) -> Void) {
         queue.async { [self] in
             self.publish = publish
             let clock = DispatchSource.makeTimerSource(queue: queue)
@@ -156,11 +166,13 @@ private final class UsageWorker: @unchecked Sendable {
     private func send(ranges: [UsageRange] = UsageRange.allCases) {
         let now = Date()
         let records = store.records
-        let limits = (claudeLimits.read() + store.codexLimits).map { $0.asOf(now) }
+        let claude = claudeLimits.read()
+        let signIns = claudeSignIns.read(claudeAccountFiles(), emails: claudeLimits.emails) + CodexSignIn.read(codexHomes(), providers: store.codexProviders)
+        let limits = (claude + CodexSignIn.labeled(store.codexLimits, by: signIns)).map { $0.asOf(now) }
         var summaries: [UsageRange: UsageSummary] = [:]
         for range in ranges {
             summaries[range] = UsageSummary.make(records: records, range: range, now: now, names: claudeLimits.emails)
         }
-        publish?(summaries, limits, SessionUsage.make(records: records, activeSince: now.addingTimeInterval(-Self.sessionHorizon)))
+        publish?(summaries, limits, signIns, SessionUsage.make(records: records, activeSince: now.addingTimeInterval(-Self.sessionHorizon)))
     }
 }

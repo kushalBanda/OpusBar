@@ -341,7 +341,9 @@ struct NotificationsPane: View {
             limitRow("gauge.with.dots.needle.67percent", "A plan limit is nearly used",
                      "At 80% and again at 95%, once per window.", $preferences.notifyLimitWarning)
             if usage.limits.isEmpty {
-                Text("Accounts show here once their limits are known. Claude Code saves them when it checks an account.")
+                Text(usage.signIns.contains { !$0.method.hasPlanLimits } && !usage.signIns.contains { $0.method.hasPlanLimits }
+                     ? "Your accounts are billed per use, so they have no plan limits to warn about."
+                     : "Accounts show here once their limits are known. Claude Code saves them when it checks an account.")
                     .font(Theme.font(12, .regular)).opacity(0.6).fixedSize(horizontal: false, vertical: true)
                     .padding(.bottom, 6)
             }

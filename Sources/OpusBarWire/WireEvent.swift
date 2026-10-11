@@ -13,19 +13,22 @@ public struct WireEvent: Codable, Equatable, Sendable {
     public var term: TermInfo?
     /// Which agent sent it. Nil means Claude Code; an unknown name from a newer hook also decodes as nil.
     public var agent: AgentKind?
+    /// How the agent is signed in, when its environment says (see `SignInMethod.claude`). Never a value.
+    public var signIn: SignInMethod?
     public var e: SlimEvent
 
     public init(v: Int = WireEvent.version, ts: Int64, pid: Int32? = nil, term: TermInfo? = nil,
-                agent: AgentKind? = nil, e: SlimEvent) {
+                agent: AgentKind? = nil, signIn: SignInMethod? = nil, e: SlimEvent) {
         self.v = v
         self.ts = ts
         self.pid = pid
         self.term = term
         self.agent = agent
+        self.signIn = signIn
         self.e = e
     }
 
-    private enum CodingKeys: String, CodingKey { case v, ts, pid, term, agent, e }
+    private enum CodingKeys: String, CodingKey { case v, ts, pid, term, agent, signIn, e }
 
     public init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -34,6 +37,7 @@ public struct WireEvent: Codable, Equatable, Sendable {
         pid = try c.decodeIfPresent(Int32.self, forKey: .pid)
         term = try c.decodeIfPresent(TermInfo.self, forKey: .term)
         agent = (try? c.decodeIfPresent(String.self, forKey: .agent)).flatMap { $0.flatMap(AgentKind.init(rawValue:)) }
+        signIn = (try? c.decodeIfPresent(String.self, forKey: .signIn)).flatMap { $0.flatMap(SignInMethod.init(rawValue:)) }
         e = try c.decode(SlimEvent.self, forKey: .e)
     }
 

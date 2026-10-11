@@ -53,7 +53,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.discovery = discovery
         let hooks = AgentHooksModel(paths: paths, environment: environment)
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
-                               codexRoots: { UsageStore.codexRoots(homes: AgentHooksModel.codexHomes(environment: environment)) },
+                               codexHomes: { AgentHooksModel.codexHomes(environment: environment) },
                                claudeAccountFiles: { AgentHooksModel.claudeAccountFiles(environment: environment) })
         usage.start()
         let notifier = SessionNotifier(store: store, preferences: preferences,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.9
+
+- OpusBar knows how each Claude and Codex account is signed in. Accounts billed per use (an API key, a Console sign-in, a custom endpoint, Amazon Bedrock, Google Vertex AI or Microsoft Foundry) get a "Billed per use" card in the Usage tab instead of waiting for plan limits that never come.
+- A session billed per use says so in its details.
+- Codex accounts are named by their ChatGPT email instead of their folder.
+- Sign-in types come from files on your Mac and from which variables a session sets, never their values. Nothing leaves your Mac.
+
 ## 0.1.8
 
 - The menu resizes as soon as you open or close a session card. It used to keep its old height while open, so cards were cut off or left a gap until something else woke OpusBar.

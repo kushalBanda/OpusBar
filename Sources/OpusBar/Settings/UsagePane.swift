@@ -41,7 +41,7 @@ struct UsagePane: View {
                     }
                 }
             }
-            Text("API value is what the same tokens cost at Anthropic's and OpenAI's list prices. Subscription plans pay a flat price instead. Nothing leaves your Mac.")
+            Text("API value is what the same tokens cost at Anthropic's and OpenAI's list prices: about what an API key pays, while subscription plans pay a flat price instead. Nothing leaves your Mac.")
                 .font(Theme.font(12, .regular)).opacity(0.5).fixedSize(horizontal: false, vertical: true).padding(.top, 4)
         }
     }

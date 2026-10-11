@@ -22,8 +22,12 @@ public enum HookForwarder {
         }
         guard let input = readCapped(stdin) else { return 0 }
         guard let slim = try? SlimEvent.slim(hookJSON: input) else { return 0 }
+        let agent = AgentKind.fromArguments(arguments)
+        let signIn = (agent ?? .claude) == .claude ? SignInMethod.claude(environment: environment) { key in
+            ClaudeKeyResponses.isDeclined(key: key, accountFile: ClaudeKeyResponses.accountFile(environment: environment))
+        } : SignInMethod.codex(environment: environment)
         let event = WireEvent(ts: ts, pid: parentPID, term: TermInfo.from(environment: environment),
-                              agent: AgentKind.fromArguments(arguments), e: slim)
+                              agent: agent, signIn: signIn, e: slim)
         guard let line = try? event.encodedLine() else { return 0 }
         _ = SocketClient.send(line, toSocketAt: paths.socket.path, timeoutMs: connectTimeoutMs)
         return 0
