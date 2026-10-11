@@ -24,8 +24,8 @@ struct AgentLogo: View {
     }
 }
 
-/// How a session pays, as a small rounded tile like an app icon: the cloud's own logo for Bedrock, Vertex AI and
-/// Foundry; a white symbol on a grey tile for a plan, API billing and a custom endpoint.
+/// How a session pays: the cloud's own colored logo for Bedrock, Vertex AI and Foundry; a plain symbol in the text
+/// color for a plan, API billing and a custom endpoint.
 struct BillingLogo: View {
     let billing: SignInMethod
     var size: CGFloat = 10
@@ -37,11 +37,9 @@ struct BillingLogo: View {
             Image(nsImage: image).resizable().interpolation(.high).scaledToFit().frame(width: size, height: size)
         } else {
             Image(systemName: Self.symbol(for: billing))
-                .font(.system(size: size * 0.58, weight: .bold))
-                .foregroundStyle(.white)
+                .font(.system(size: size * 0.8, weight: .bold))
                 .frame(width: size, height: size)
-                .background(RoundedRectangle(cornerRadius: Self.cornerRadius(size), style: .continuous)
-                    .fill(Color(white: 0.45)))
+                .opacity(0.85)
         }
     }
 
