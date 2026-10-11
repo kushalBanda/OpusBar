@@ -2,11 +2,40 @@ import Darwin
 import Foundation
 import OpusBarWire
 
-/// Lists processes in-process through libproc and sysctl. Never spawns `ps`, never reads another
-/// process's environment: only argv is parsed out of `KERN_PROCARGS2`.
+/// Lists processes in-process through libproc and sysctl. Never spawns `ps`. Of another process's
+/// environment only the billing switches in `SignInEnvironment` are looked at, and of a key only whether it is set.
 public protocol ProcessListing: Sendable {
     func processes() -> [AgentProcess]
     func workingDirectory(pid: Int32) -> String?
+    /// `SignInEnvironment.names` the process has set; a key's value is replaced by "1".
+    func signInEnvironment(pid: Int32) -> [String: String]
+}
+
+public extension ProcessListing {
+    func signInEnvironment(pid: Int32) -> [String: String] { [:] }
+}
+
+/// The variables that say how an agent pays (`SignInMethod.claude`, `SignInMethod.codex`).
+public enum SignInEnvironment {
+    /// Switches, read as on or off.
+    static let switches: Set<String> = ["CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY"]
+    /// Credentials and names: only whether each is set is kept.
+    static let presence: Set<String> = ["ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_API_KEY", "CLAUDE_CODE_OAUTH_TOKEN",
+                                        "ANTHROPIC_PROFILE", "ANTHROPIC_FEDERATION_RULE_ID", "ANTHROPIC_ORGANIZATION_ID",
+                                        "CODEX_API_KEY"]
+
+    /// One `NAME=value` entry, kept only when it is one of ours. Nothing else is decoded.
+    static func entry(_ bytes: ArraySlice<UInt8>) -> (String, String)? {
+        guard let equals = bytes.firstIndex(of: UInt8(ascii: "=")) else { return nil }
+        let name = String(decoding: bytes[bytes.startIndex..<equals], as: UTF8.self)
+        if switches.contains(name) {
+            return (name, String(decoding: bytes[(equals + 1)...].prefix(16), as: UTF8.self))
+        }
+        if presence.contains(name) {
+            return bytes[(equals + 1)...].contains(where: { $0 != UInt8(ascii: " ") }) ? (name, "1") : nil
+        }
+        return nil
+    }
 }
 
 public struct DarwinProcessLister: ProcessListing {
@@ -64,7 +93,15 @@ public struct DarwinProcessLister: ProcessListing {
         return String(decoding: buffer.prefix(Int(count)).prefix { $0 != 0 }, as: UTF8.self)
     }
 
+    public func signInEnvironment(pid: Int32) -> [String: String] {
+        Self.procArgs2(pid: pid).map(Self.parseSignInEnvironment(procArgs2:)) ?? [:]
+    }
+
     static func arguments(pid: Int32) -> [String]? {
+        procArgs2(pid: pid).flatMap(parseArguments(procArgs2:))
+    }
+
+    static func procArgs2(pid: Int32) -> Data? {
         var mib = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, u_int(mib.count), nil, &size, nil, 0) == 0,
@@ -73,13 +110,30 @@ public struct DarwinProcessLister: ProcessListing {
         var data = Data(count: size)
         let result = data.withUnsafeMutableBytes { sysctl(&mib, u_int(mib.count), $0.baseAddress, &size, nil, 0) }
         guard result == 0 else { return nil }
-        return parseArguments(procArgs2: data.prefix(size))
+        return data.prefix(size)
     }
 
     /// `KERN_PROCARGS2` layout: argc (Int32), exec path, NUL padding, argc NUL-terminated strings, then the
     /// environment. Stops after argc strings, so the environment is never read.
     static func parseArguments(procArgs2 data: Data) -> [String]? {
+        argumentsEnd(procArgs2: [UInt8](data)).map(\.arguments)
+    }
+
+    /// The environment after argv, of which only `SignInEnvironment`'s names are kept.
+    static func parseSignInEnvironment(procArgs2 data: Data) -> [String: String] {
         let bytes = [UInt8](data)
+        guard var offset = argumentsEnd(procArgs2: bytes)?.end else { return [:] }
+        var found: [String: String] = [:]
+        while offset < bytes.count {
+            let end = bytes[offset...].firstIndex(of: 0) ?? bytes.count
+            if end == offset { break }
+            if let (name, value) = SignInEnvironment.entry(bytes[offset..<end]) { found[name] = value }
+            offset = end + 1
+        }
+        return found
+    }
+
+    private static func argumentsEnd(procArgs2 bytes: [UInt8]) -> (arguments: [String], end: Int)? {
         guard bytes.count >= 4 else { return nil }
         let argc = Int(bytes.withUnsafeBytes { Int32(littleEndian: $0.loadUnaligned(as: Int32.self)) })
         guard argc >= 0, argc <= bytes.count else { return nil }
@@ -93,6 +147,6 @@ public struct DarwinProcessLister: ProcessListing {
             arguments.append(String(decoding: bytes[offset..<end], as: UTF8.self))
             offset = end + 1
         }
-        return arguments
+        return (arguments, offset)
     }
 }

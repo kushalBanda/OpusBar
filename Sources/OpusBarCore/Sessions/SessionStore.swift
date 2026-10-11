@@ -83,15 +83,15 @@ public final class SessionStore {
             next.byId[id] = session
         }
         set(next)
-        remember(event, session: next.byId[id])
+        remember(event.signIn, session: next.byId[id])
     }
 
-    private func remember(_ event: WireEvent, session: Session?) {
+    private func remember(_ signIn: SignInMethod?, session: Session?) {
         guard let session, let path = session.transcriptPath,
               let root = AccountSignIn.root(ofTranscript: path, agent: session.agent) else { return }
         let key = AccountSignIn(agent: session.agent, root: UsageLogReader.canonical(root), label: nil, method: .subscription).id
-        guard signInByAccount[key] != event.signIn else { return }
-        signInByAccount[key] = event.signIn
+        guard signInByAccount[key] != signIn else { return }
+        signInByAccount[key] = signIn
         saveSignIns(signInByAccount)
     }
 
@@ -116,6 +116,11 @@ public final class SessionStore {
             if let host = process.host { session.host = host }
             // Hooks report the mode with each prompt; until the first one, discovery's reading stands in.
             if session.permissionMode == nil { session.permissionMode = process.permissionMode }
+            // Hooks say how a session pays with each event; for one started before OpusBar, its environment does now.
+            if session.signIn == nil, let signIn = process.signIn {
+                session.signIn = signIn
+                remember(signIn, session: session)
+            }
             guard let record = process.record else { next.byId[id] = session; continue }
             if let title = record.title {
                 session.title = title
@@ -151,6 +156,9 @@ public final class SessionStore {
             session.titleIsDerived = process.record?.titleIsDerived ?? false
             session.host = process.host
             session.permissionMode = process.permissionMode
+            session.signIn = process.signIn
+            if let path = process.record?.path, path.hasSuffix(".jsonl") { session.transcriptPath = path }
+            if let signIn = process.signIn { remember(signIn, session: session) }
             if let record = process.record {
                 session.lastEventAt = record.modifiedAt
                 // The agent's own status beats guessing from file activity.

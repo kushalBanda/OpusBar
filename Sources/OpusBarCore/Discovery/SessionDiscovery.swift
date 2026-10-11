@@ -11,9 +11,12 @@ public struct DiscoveredProcess: Equatable, Sendable {
     public var host: SessionHost?
     /// Claude only, from the transcript, launch flags or settings (`PermissionModeReader`).
     public var permissionMode: PermissionMode?
+    /// What the process's environment says about billing (Bedrock from the shell, an API key); nil when it says nothing.
+    public var signIn: SignInMethod?
 
     public init(pid: Int32, agent: AgentKind, cwd: String?, startedAt: Date?, record: SessionRecord? = nil,
-                host: SessionHost? = nil, permissionMode: PermissionMode? = nil) {
+                host: SessionHost? = nil, permissionMode: PermissionMode? = nil, signIn: SignInMethod? = nil) {
+        self.signIn = signIn
         self.host = host
         self.permissionMode = permissionMode
         self.pid = pid
@@ -51,6 +54,15 @@ public struct SessionDiscovery: Sendable {
         self.codexHomes = codexHomes ?? { CodexHomes.all(environment: environment, userAdded: []).map(\.root) }
     }
 
+    /// A key is taken as used: whether it was declined at Claude's prompt would need its value. The session's
+    /// hooks, which can check, correct it with their next event.
+    static func signIn(agent: AgentKind, environment: [String: String]) -> SignInMethod? {
+        switch agent {
+        case .claude: SignInMethod.claude(environment: environment, declined: { _ in false })
+        case .codex: SignInMethod.codex(environment: environment)
+        }
+    }
+
     public func scan(now: Date = Date()) -> [DiscoveredProcess] {
         let all = lister.processes()
         let agentProcesses = AgentProcessClassifier.agentProcesses(from: all, limit: limit)
@@ -59,7 +71,8 @@ public struct SessionDiscovery: Sendable {
             DiscoveredProcess(pid: process.pid, agent: agent,
                               cwd: process.cwd ?? lister.workingDirectory(pid: process.pid),
                               startedAt: process.startedAt,
-                              host: SessionHost.resolve(pid: process.pid, processes: byPID))
+                              host: SessionHost.resolve(pid: process.pid, processes: byPID),
+                              signIn: Self.signIn(agent: agent, environment: lister.signInEnvironment(pid: process.pid)))
         }
         guard !found.isEmpty else { return [] }
         var budget = ScanBudget()
