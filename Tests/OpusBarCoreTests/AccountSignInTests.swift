@@ -143,6 +143,19 @@ final class AccountSignInTests: XCTestCase {
         XCTAssertNil(store.signInByAccount["claude:/nonexistent/.claude"], "a plain session hands the profile back to its files")
     }
 
+    @MainActor
+    func testDiscoveredSessionPicksUpItsBillingAndProfile() {
+        var saved: [String: SignInMethod] = [:]
+        let store = SessionStore(isAlive: { _ in true }, branchReader: { _ in nil }, subagentMeta: { _, _ in nil },
+                                 saveSignIns: { saved = $0 })
+        let transcript = "/nonexistent/.claude/projects/-tmp-p/s1.jsonl"
+        let record = SessionRecord(id: "s1", agent: .claude, cwd: "/tmp/p", modifiedAt: Date(), path: transcript)
+        store.applyDiscovery([DiscoveredProcess(pid: 9, agent: .claude, cwd: "/tmp/p", startedAt: nil, record: record, signIn: .bedrock)])
+        XCTAssertEqual(store.state.byId["s1"]?.signIn, .bedrock)
+        XCTAssertEqual(store.state.byId["s1"]?.transcriptPath, transcript, "so a plain one falls back to its profile")
+        XCTAssertEqual(saved, ["claude:/nonexistent/.claude": .bedrock])
+    }
+
     func testSessionBillingFallsBackToItsProfile() {
         var session = Session(id: "s", cwd: "/tmp", startedAt: Date())
         session.transcriptPath = "/nonexistent/.claude/projects/-tmp/s.jsonl"

@@ -70,6 +70,27 @@ final class DarwinProcessListerTests: XCTestCase {
         XCTAssertEqual(DarwinProcessLister.parseArguments(procArgs2: data), ["claude", "--resume"])
     }
 
+    func testSignInEnvironmentKeepsOnlyBillingNamesAndNoKeyValues() {
+        var data = Data()
+        var argc = Int32(1).littleEndian
+        withUnsafeBytes(of: &argc) { data.append(contentsOf: $0) }
+        data.append(contentsOf: Array("/usr/bin/claude".utf8) + [0, 0])
+        data.append(contentsOf: Array("claude".utf8) + [0])
+        for entry in ["PATH=/bin", "CLAUDE_CODE_USE_BEDROCK=1", "ANTHROPIC_API_KEY=sk-secret", "CLAUDE_CODE_USE_VERTEX=0",
+                      "ANTHROPIC_AUTH_TOKEN= ", "SECRET_TOKEN=abc"] {
+            data.append(contentsOf: Array(entry.utf8) + [0])
+        }
+        data.append(0)
+        XCTAssertEqual(DarwinProcessLister.parseSignInEnvironment(procArgs2: data),
+                       ["CLAUDE_CODE_USE_BEDROCK": "1", "ANTHROPIC_API_KEY": "1", "CLAUDE_CODE_USE_VERTEX": "0"])
+    }
+
+    func testDiscoverySignInFromEnvironment() {
+        XCTAssertEqual(SessionDiscovery.signIn(agent: .claude, environment: ["CLAUDE_CODE_USE_BEDROCK": "1"]), .bedrock)
+        XCTAssertEqual(SessionDiscovery.signIn(agent: .codex, environment: ["CODEX_API_KEY": "1"]), .apiKey)
+        XCTAssertNil(SessionDiscovery.signIn(agent: .claude, environment: [:]))
+    }
+
     func testParseArgumentsRejectsTruncatedBuffer() {
         var data = Data()
         var argc = Int32(3).littleEndian

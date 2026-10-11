@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.12
+
+- Sessions already running when OpusBar starts show how they pay right away, instead of no badge until their next event.
+- A session started from a shell that sets Bedrock, Vertex AI, Foundry or an API key is picked up at once, and its profile is remembered. OpusBar looks only at those few variable names; of a key it notes only that it is set, never its value.
+
 ## 0.1.11
 
 - Every session card shows who runs it and how it pays: the Claude or Codex logo under the timer, with a small badge in its corner. Amazon Bedrock, Google Vertex AI and Microsoft Foundry get their own colored logos; a plan, an API key and a custom endpoint get a simple symbol. Hover for the name.
