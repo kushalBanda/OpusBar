@@ -49,6 +49,15 @@ final class UsageModel {
         }
     }
 
+    #if DEBUG
+    /// `--demo`: sample figures in place of the Mac's logs.
+    func show(summaries: [UsageRange: UsageSummary], limits: [UsageLimits], signIns: [AccountSignIn]) {
+        self.summaries = summaries
+        self.limits = limits
+        self.signIns = signIns
+    }
+    #endif
+
     /// Dropdown opened: pick up files the watcher can't see (new profile roots) and move the 24 h window.
     func refresh() { worker.refresh() }
 

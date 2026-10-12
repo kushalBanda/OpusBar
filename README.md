@@ -8,7 +8,7 @@
 
 OpusBar is a free, open-source macOS menu bar app for Claude Code and Codex sessions. Every session at a glance. Know the second one needs you, and see how much of your plan is left.
 
-[**Install OpusBar**](#install) · [Website](https://kushalbanda.com/opusbar/)
+[**Install OpusBar**](#install) · [Website](https://kushalbanda.com/opusbar/) · [What's new](CHANGELOG.md)
 
 Free and open source · macOS 14 or later · Apple silicon and Intel
 
@@ -40,15 +40,15 @@ OpusBar puts every running session in your menu bar. The cat takes on the state 
 | yawning | **stuck on an error** |
 | sitting | **idle** |
 
-A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list: each session's folder, git branch, agent, and how long it has been running.
+A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list: each session's folder, git branch, permission mode and how long it has been running. The Claude or Codex logo in the corner carries a small badge for how that session pays.
 
 <p align="center">
-  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: payments-api needs you to allow Bash, web-app and infra are working, design-system is done, ml-pipeline is thinking. Each row shows the agent, git branch and elapsed time">
+  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: payments-api needs you to allow Bash; web-app, infra and ml-pipeline are working or thinking; design-system and search-service are done. Each row ends with its elapsed time and the agent logo, badged for a subscription, API billing, Amazon Bedrock, Google Vertex AI or Microsoft Foundry">
   &nbsp;
-  <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: Claude Code and Codex plan limits with time to reset, then 24 hours of API value as a bar chart split by agent, with the top models and projects">
+  <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: plan limits for two Claude Code profiles and Codex with time to reset, a Bedrock profile billed per use, then the API value chart">
 </p>
 
-<p align="center"><sub>The menu: every session, and your limits and spend one tab over. Sessions are sample data. The Usage tab is real use, with the account names changed.</sub></p>
+<p align="center"><sub>The menu: every session, and your limits and spend one tab over. Sample data.</sub></p>
 
 ## What it does
 
@@ -63,6 +63,10 @@ A notification when a session needs you or hits an error. Finished sessions can 
 ### Plan limits
 
 Your 5-hour and weekly windows for every Claude Code and Codex account, with the time each one resets. OpusBar warns at 80% and 95% and tells you when a window renews. Work and personal profiles, or a second `CODEX_HOME`, each keep their own limits. Claude figures refresh after every reply.
+
+### How each session pays
+
+Every session card shows its agent's logo with a small badge: a subscription, API billing, a custom endpoint, or the cloud it runs on (Amazon Bedrock, Google Vertex AI, Microsoft Foundry). OpusBar reads this from the agent's settings and environment, never a key. Settings › Agents names how each profile pays, and profiles billed per use get their own card in the Usage tab, since they have no plan limits.
 
 ### Usage and API value
 
@@ -154,6 +158,10 @@ Do step 1 first. Otherwise Claude Code's status line points at a helper that no 
 **The DMG won't open.** Try to open it once, then go to System Settings › Privacy & Security and click Open Anyway. Or use the curl install.
 
 Something else? [Open an issue](https://github.com/kushalBanda/OpusBar/issues).
+
+## What's new
+
+Every release and what changed in it: [CHANGELOG.md](CHANGELOG.md). OpusBar also shows the latest notes in the menu after it updates.
 
 ## Build from source
 

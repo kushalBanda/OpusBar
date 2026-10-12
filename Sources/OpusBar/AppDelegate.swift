@@ -24,8 +24,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let signInsKey = "signInByAccount"
         let savedSignIns = (UserDefaults.standard.dictionary(forKey: signInsKey) as? [String: String] ?? [:])
             .compactMapValues(SignInMethod.init(rawValue:))
+        #if DEBUG
+        var demoClock: Date?
+        let store = DemoSessions.isOn
+            ? SessionStore(finishedTTL: 24 * 3600, now: { demoClock ?? Date() }, isAlive: { _ in true },
+                           branchReader: DemoSessions.branch(cwd:))
+            : SessionStore(finishedTTL: preferences.retention.seconds, signInByAccount: savedSignIns,
+                           saveSignIns: { UserDefaults.standard.set($0.mapValues(\.rawValue), forKey: signInsKey) })
+        if DemoSessions.isOn { DemoSessions.play(into: store) { demoClock = $0 } }
+        #else
         let store = SessionStore(finishedTTL: preferences.retention.seconds, signInByAccount: savedSignIns,
                                  saveSignIns: { UserDefaults.standard.set($0.mapValues(\.rawValue), forKey: signInsKey) })
+        #endif
         self.preferences = preferences
         self.store = store
         followRetention()
@@ -36,8 +46,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             #endif
             Task { @MainActor in store.apply(event) }
         }
+        #if DEBUG
+        let listens = !DemoSessions.isOn
+        #else
+        let listens = true
+        #endif
         do {
-            try server.start()
+            if listens { try server.start() }
         } catch {
             NSLog("OpusBar: socket server failed to start: \(error)")
         }
@@ -50,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #if DEBUG
         // `--no-discovery` leaves out processes found on the Mac: only hook events make rows, for screenshots
         // made from staged sessions.
-        let discovers = !ProcessInfo.processInfo.arguments.contains("--no-discovery")
+        let discovers = !ProcessInfo.processInfo.arguments.contains("--no-discovery") && !DemoSessions.isOn
         #else
         let discovers = true
         #endif
@@ -60,7 +75,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
                                codexHomes: { AgentHooksModel.codexHomes(environment: environment) },
                                claudeAccountFiles: { AgentHooksModel.claudeAccountFiles(environment: environment) })
+        #if DEBUG
+        if DemoSessions.isOn { DemoSessions.fill(usage) } else { usage.start() }
+        #else
         usage.start()
+        #endif
         let notifier = SessionNotifier(store: store, preferences: preferences,
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
                                        openMenu: { [weak self] in self?.statusItem?.showMenu() })
