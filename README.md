@@ -40,12 +40,12 @@ OpusBar puts every running session in your menu bar. The cat takes on the state 
 | yawning | **stuck on an error** |
 | sitting | **idle** |
 
-A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list: each session's folder, git branch, permission mode and how long it has been running. The Claude or Codex logo in the corner carries a small badge for how that session pays.
+A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list, sessions that need you on top. Each card shows the project, what it is doing and for how long, with the Claude or Codex logo as a badge on the cat. Tap a card for its folder, terminal, tokens and billing, and to open its folder, copy its path or bring its terminal forward.
 
 <p align="center">
-  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: payments-api needs you to allow Bash; web-app, infra and ml-pipeline are working or thinking; design-system and search-service are done. Each row ends with its elapsed time and the agent logo, badged for a subscription, API billing, Amazon Bedrock, Google Vertex AI or Microsoft Foundry">
+  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: under Attention, payments-api needs you to allow Bash; under Active, design-system and search-service are done, infra and web-app are working and ml-pipeline is thinking. Each card shows its elapsed time and the agent's logo as a badge on the cat">
   &nbsp;
-  <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: plan limits for two Claude Code profiles and Codex with time to reset, a Bedrock profile billed per use, then the API value chart">
+  <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: 5-hour and weekly limits side by side for two Claude Code profiles and Codex, each with when it renews, a Bedrock profile billed per use, then the API value">
 </p>
 
 <p align="center"><sub>The menu: every session, and your limits and spend one tab over. Sample data.</sub></p>
@@ -62,20 +62,20 @@ A notification when a session needs you or hits an error. Finished sessions can 
 
 ### Plan limits
 
-Your 5-hour and weekly windows for every Claude Code and Codex account, with the time each one resets. OpusBar warns at 80% and 95% and tells you when a window renews. Work and personal profiles, or a second `CODEX_HOME`, each keep their own limits. Claude figures refresh after every reply.
+Your 5-hour and weekly windows for every Claude Code and Codex account, with the time each one resets. OpusBar warns at 80% and 95% and tells you when a window renews. Work and personal profiles, or a second `CODEX_HOME`, each keep their own limits. Claude figures refresh after every reply. If your pace would use up a limit before it renews, the card says when it runs out.
 
 ### How each session pays
 
-Every session card shows its agent's logo with a small badge: a subscription, API billing, a custom endpoint, or the cloud it runs on (Amazon Bedrock, Google Vertex AI, Microsoft Foundry). OpusBar reads this from the agent's settings and environment, never a key. Settings › Agents names how each profile pays, and profiles billed per use get their own card in the Usage tab, since they have no plan limits.
+Tap a session card to see how it pays: a subscription, API billing, a custom endpoint, or the cloud it runs on (Amazon Bedrock, Google Vertex AI, Microsoft Foundry). OpusBar reads this from the agent's settings and environment, never a key. Settings › Agents names how each profile pays, and profiles billed per use get their own card in the Usage tab, since they have no plan limits.
 
 ### Usage and API value
 
-Tokens over the last 24 hours, 7, 30 or 90 days, split by agent, account, model and project, with a daily chart. Next to them is the *API value*: what the same tokens would cost at Anthropic's and OpenAI's list prices. On a subscription, that's what your plan is covering. It's read straight from your agents' own logs, so your history is there on first launch.
+Tokens over the last 24 hours, 7, 30 or 90 days, split by agent, account, model and project, with a chart over time and the token mix (input, output, cache read, cache write). Pick Overview, Claude Code or Codex to see one agent at a time. Next to them is the *API value*: what the same tokens would cost at Anthropic's and OpenAI's list prices. On a subscription, that's what your plan is covering. It's read straight from your agents' own logs, so your history is there on first launch.
 
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/assets/settings-usage-dark.png">
-    <img src="docs/assets/settings-usage-light.png" width="720" alt="The Usage and Spend window: API value and token totals for the last 24 hours, with breakdowns by agent and by model">
+    <img src="docs/assets/settings-usage-light.png" width="720" alt="The Usage and Spend window: API value, tokens, sessions and active days for the last 24 hours, API value by hour for Claude Code and Codex, the token mix, then a card per agent">
   </picture>
 </p>
 
