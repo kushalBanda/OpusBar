@@ -70,6 +70,8 @@ public struct UsageSummary: Equatable, Sendable {
     public var range: UsageRange
     public var since: Date
     public var total: UsageTotals
+    /// Distinct agent sessions with a reply in the range.
+    public var sessions = 0
     public var byAgent: [UsageShare]
     /// Per account folder (Claude profile, Codex home), named by `names` or the folder.
     public var byAccount: [UsageShare] = []
@@ -84,18 +86,22 @@ public struct UsageSummary: Equatable, Sendable {
     public var hours: [UsageDay] = []
     /// Bars for this range's trend: hours for 24 h, days otherwise.
     public var trend: [UsageDay] { range == .day ? hours : days }
+    /// Calendar days with at least one reply; the 24 h range counts as one when it has any.
+    public var activeDays: Int { range == .day ? (total.replies > 0 ? 1 : 0) : days.filter { $0.totals.replies > 0 }.count }
 
     public static let projectLimit = 8
 
     /// `names` maps an account folder to what to call it (the Claude email); others go by folder name.
+    /// `agent` keeps only that agent's replies.
     public static func make(records: [UsageRecord], range: UsageRange, now: Date, calendar: Calendar = .current,
-                            names: [String: String] = [:]) -> UsageSummary {
+                            names: [String: String] = [:], agent only: AgentKind? = nil) -> UsageSummary {
         let since = range.start(now: now, calendar: calendar)
         var total = UsageTotals()
         var agents: [AgentKind: UsageTotals] = [:]
         var accounts: [String: (agent: AgentKind, account: String, totals: UsageTotals)] = [:]
         var models: [String: (agent: AgentKind, totals: UsageTotals)] = [:]
         var projects: [String: (agents: Set<AgentKind>, totals: UsageTotals)] = [:]
+        var sessions = Set<String>()
         var dayIndex: [Date: Int] = [:]
         var days: [UsageDay] = []
         if let count = range.days {
@@ -111,8 +117,9 @@ public struct UsageSummary: Equatable, Sendable {
         if range == .day {
             hours = (0..<24).reversed().map { UsageDay(start: thisHour.addingTimeInterval(-3_600 * Double($0)), totals: UsageTotals()) }
         }
-        for record in records where record.date >= since && record.date <= now {
+        for record in records where record.date >= since && record.date <= now && (only == nil || record.agent == only) {
             total.add(record)
+            sessions.insert("\(record.agent.rawValue):\(record.session)")
             agents[record.agent, default: UsageTotals()].add(record)
             accounts["\(record.agent.rawValue):\(record.account)", default: (record.agent, record.account, UsageTotals())]
                 .totals.add(record)
@@ -143,7 +150,7 @@ public struct UsageSummary: Equatable, Sendable {
             byProject = Array(byProject.prefix(projectLimit))
                 + [UsageShare(id: "\u{0}other", name: "Other", agent: nil, totals: other)]
         }
-        return UsageSummary(range: range, since: since, total: total, byAgent: ranked(byAgent), byAccount: ranked(byAccount),
+        return UsageSummary(range: range, since: since, total: total, sessions: sessions.count, byAgent: ranked(byAgent), byAccount: ranked(byAccount),
                             byModel: ranked(byModel),
                             byProject: byProject, days: days, hours: hours)
     }

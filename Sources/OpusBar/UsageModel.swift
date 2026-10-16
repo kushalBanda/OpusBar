@@ -13,6 +13,9 @@ final class UsageModel {
     /// One summary per range; empty until the first scan finishes.
     private(set) var summaries: [UsageRange: UsageSummary] = [:]
 
+    /// The same, one agent at a time, for the pane's agent picker.
+    private(set) var agentSummaries: [AgentKind: [UsageRange: UsageSummary]] = [:]
+
     /// Nil until the first scan finishes.
     var last24h: UsageTotals? { summaries[.day]?.total }
 
@@ -38,10 +41,11 @@ final class UsageModel {
 
     /// First scan, then watching.
     func start() {
-        worker.start { [weak self] summaries, limits, signIns, sessions in
+        worker.start { [weak self] summaries, agentSummaries, limits, signIns, sessions in
             guard let self else { return }
             Task { @MainActor in
                 if self.summaries != summaries { self.summaries = summaries }
+                if self.agentSummaries != agentSummaries { self.agentSummaries = agentSummaries }
                 if self.limits != limits { self.limits = limits }
                 if self.signIns != signIns { self.signIns = signIns }
                 if self.sessions != sessions { self.sessions = sessions }
@@ -51,8 +55,10 @@ final class UsageModel {
 
     #if DEBUG
     /// `--demo`: sample figures in place of the Mac's logs.
-    func show(summaries: [UsageRange: UsageSummary], limits: [UsageLimits], signIns: [AccountSignIn]) {
+    func show(summaries: [UsageRange: UsageSummary], agentSummaries: [AgentKind: [UsageRange: UsageSummary]],
+              limits: [UsageLimits], signIns: [AccountSignIn]) {
         self.summaries = summaries
+        self.agentSummaries = agentSummaries
         self.limits = limits
         self.signIns = signIns
     }
@@ -84,7 +90,8 @@ private final class UsageWorker: @unchecked Sendable {
     private var watching: [String] = []
     /// A refresh is queued and not yet run: further requests join it.
     private var refreshQueued = false
-    private var publish: (@Sendable ([UsageRange: UsageSummary], [UsageLimits], [AccountSignIn], [String: SessionUsage]) -> Void)?
+    private var publish: (@Sendable ([UsageRange: UsageSummary], [AgentKind: [UsageRange: UsageSummary]], [UsageLimits], [AccountSignIn],
+                                      [String: SessionUsage]) -> Void)?
     /// A session idle longer than this is off the cards by then (finished sessions leave within an hour at most).
     static let sessionHorizon: TimeInterval = 3 * 86_400
     private let claudeLimits: ClaudeCodeLimitsReader
@@ -105,7 +112,8 @@ private final class UsageWorker: @unchecked Sendable {
                                               liveFile: { paths.liveLimitsFile(profileRoot: $0.path) })
     }
 
-    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [UsageLimits], [AccountSignIn], [String: SessionUsage]) -> Void) {
+    func start(publish: @escaping @Sendable ([UsageRange: UsageSummary], [AgentKind: [UsageRange: UsageSummary]], [UsageLimits], [AccountSignIn],
+                                      [String: SessionUsage]) -> Void) {
         queue.async { [self] in
             self.publish = publish
             let clock = DispatchSource.makeTimerSource(queue: queue)
@@ -179,9 +187,14 @@ private final class UsageWorker: @unchecked Sendable {
         let signIns = claudeSignIns.read(claudeAccountFiles(), emails: claudeLimits.emails) + CodexSignIn.read(codexHomes(), providers: store.codexProviders)
         let limits = (claude + CodexSignIn.labeled(store.codexLimits, by: signIns)).map { $0.asOf(now) }
         var summaries: [UsageRange: UsageSummary] = [:]
+        var agentSummaries: [AgentKind: [UsageRange: UsageSummary]] = [:]
         for range in ranges {
             summaries[range] = UsageSummary.make(records: records, range: range, now: now, names: claudeLimits.emails)
+            for agent in AgentKind.allCases {
+                agentSummaries[agent, default: [:]][range] = UsageSummary.make(records: records, range: range, now: now,
+                                                                              names: claudeLimits.emails, agent: agent)
+            }
         }
-        publish?(summaries, limits, signIns, SessionUsage.make(records: records, activeSince: now.addingTimeInterval(-Self.sessionHorizon)))
+        publish?(summaries, agentSummaries, limits, signIns, SessionUsage.make(records: records, activeSince: now.addingTimeInterval(-Self.sessionHorizon)))
     }
 }

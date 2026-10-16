@@ -36,7 +36,8 @@ struct SessionRowView: View {
             }
             // Opens and closes in the tap's spring; the menu holds its height until a collapse settles.
             if isExpanded {
-                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected, billing: billing)
+                SessionDetails(session: session, now: now, secondary: secondary, agentConnected: agentConnected, billing: billing,
+                               usage: usage?.total)
                     .transition(.opacity)
             }
         }
@@ -51,43 +52,50 @@ struct SessionRowView: View {
         .accessibilityHint(isExpanded ? "Hides details" : "Shows details")
     }
 
+    /// The face answers three things: which session (name, branch), what it is doing and for how long, and
+    /// what it has cost. The agent rides on the cat as a badge; tokens, billing and the rest wait behind a tap.
     private var summary: some View {
         HStack(alignment: .center, spacing: 12) {
             CatView(state: session.state)
                 .frame(width: 40, height: 40)
                 .background(RoundedRectangle(cornerRadius: 12).fill(isLoud ? Self.tileLight : session.state.tileColor))
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
+                .overlay(alignment: .bottomTrailing) {
+                    AgentLogo(agent: session.agent, size: 11)
+                        .frame(width: 18, height: 18)
+                        .background(Circle().fill(Theme.surface).shadow(color: .black.opacity(0.2), radius: 1, y: 0.5))
+                        .offset(x: 5, y: 5)
+                        .help(session.agent.displayName)
+                }
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(session.projectName).font(Theme.font(13, .semibold)).lineLimit(1).layoutPriority(1)
                     if showsBranch, let branch = session.branch {
                         Text(branch).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1).truncationMode(.middle)
                     }
+                    Spacer(minLength: 6)
+                    if let total = usage?.total, total.replies > 0 {
+                        Text(UsageFormat.cost(total.cost) + (total.unpriced > 0 ? "+" : ""))
+                            .font(Theme.font(12, .semibold).monospacedDigit())
+                            .fixedSize()
+                            .help("Cost at API prices so far, subagents included.")
+                    }
                 }
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(detailLine).font(Theme.font(11, .regular)).foregroundStyle(secondary).lineLimit(1)
                     if let mode = session.permissionMode, !mode.isDefault {
                         ModeMark(mode: mode, onLoudTile: isLoud)
                             .transition(reduceMotion ? .opacity : .opacity.combined(with: .scale(scale: 0.85, anchor: .leading)))
                             .layoutPriority(1)
                     }
-                }
-                if let total = usage?.total, total.replies > 0 {
-                    UsageMetrics(total: total, secondary: secondary).padding(.top, 2)
+                    Spacer(minLength: 6)
+                    Text(Self.elapsed(from: Self.timerStart(for: session), to: now))
+                        .font(Theme.font(11, .medium).monospacedDigit())
+                        .foregroundStyle(secondary)
+                        .fixedSize()
+                        .help(timerHelp)
                 }
             }
-            .layoutPriority(1)
-            Spacer(minLength: 4)
-            // A trailing column like Mail's date and flag: the timer, then who runs the session and how it
-            // pays, both on one right edge, so the name gets the whole text column.
-            VStack(alignment: .trailing, spacing: 6) {
-                Text(Self.elapsed(from: Self.timerStart(for: session), to: now))
-                    .font(Theme.font(11).monospacedDigit())
-                    .foregroundStyle(secondary)
-                    .help(timerHelp)
-                AgentMark(agent: session.agent, billing: billing)
-            }
-            .fixedSize()
-            .frame(maxHeight: .infinity, alignment: .top)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         // Shift+Tab in the agent swaps the badge in place: critically damped, no bounce.
         .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: session.permissionMode)
@@ -138,32 +146,49 @@ struct SessionRowView: View {
     }
 }
 
-/// The expanded part of a card: the facts about the session.
+/// The expanded part of a card: only what helps act on the session. Where it is and runs, how long, what it
+/// has used and how it pays; then the actions that take you to it.
 private struct SessionDetails: View {
     let session: Session
     let now: Date
     let secondary: AnyShapeStyle
     let agentConnected: Bool
     var billing: SignInMethod?
+    var usage: UsageTotals?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
-                row("Folder", Self.tildePath(session.cwd))
-                if let branch = session.branch { row("Branch", branch) }
-                if let title = session.title { row("Session", title) }
-                if let mode = session.permissionMode { row("Mode", mode.label) }
-                if let billing { row("Billing", billing.hasPlanLimits ? billing.label : "\(billing.label), per use") }
-                if let place = session.host?.label ?? session.term?.termProgram.map(Self.terminalName) { row("Where", place) }
+        VStack(alignment: .leading, spacing: 10) {
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 5) {
+                row("Folder", [Self.tildePath(session.cwd), session.branch].compactMap { $0 }.joined(separator: " · "))
+                if let place = session.host?.appName ?? session.term?.termProgram.map(Self.terminalName) ?? session.host?.tty {
+                    row("Runs in", place)
+                }
                 row("Started", "\(ElapsedFormat.short(from: session.startedAt, to: now)) ago")
-                row("Last activity", "\(ElapsedFormat.short(from: session.lastEventAt, to: now)) ago")
-                row("States", session.isDiscovered ? "Found running, no live states" : "Live from hooks")
+                if let usage, usage.replies > 0 {
+                    row("Tokens", tokens(usage))
+                        .help("In: new input, fresh plus written to cache. Cached: the conversation re-read with each reply.")
+                }
+                if let billing { row("Pays by", billing.hasPlanLimits ? billing.label : "\(billing.label), per use") }
             }
             if session.isDiscovered {
                 // Hooks load when a session starts, so sessions that predate connecting stay without live states.
-                Text(liveStatesHint)
+                Label(liveStatesHint, systemImage: "info.circle")
                     .font(Theme.font(11, .regular)).foregroundStyle(secondary)
                     .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack(spacing: 6) {
+                if let app = session.host?.appPath {
+                    action("Show in \(session.host?.appName ?? "app")", "macwindow") {
+                        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: app), configuration: .init())
+                    }
+                }
+                action("Open folder", "folder") {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])
+                }
+                action("Copy path", "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(session.cwd, forType: .string)
+                }
             }
         }
         .padding(.leading, 52) // lines up with the text column, past the cat tile
@@ -171,8 +196,13 @@ private struct SessionDetails: View {
 
     private var liveStatesHint: String {
         agentConnected
-            ? "This session started before OpusBar was connected. To see its live state here, restart it."
-            : "Connect \(session.agent.displayName) in Settings, then restart it, to see its live state here."
+            ? "Started before OpusBar was connected. Restart it for live states."
+            : "Connect \(session.agent.displayName) in Settings, then restart it, for live states."
+    }
+
+    private func tokens(_ usage: UsageTotals) -> String {
+        let tokens = usage.tokens
+        return "\(UsageFormat.tokens(tokens.input + tokens.cacheWrite)) in · \(UsageFormat.tokens(tokens.output)) out · \(UsageFormat.tokens(tokens.cacheRead)) cached"
     }
 
     private func row(_ label: String, _ value: String) -> some View {
@@ -182,6 +212,10 @@ private struct SessionDetails: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
         }
+    }
+
+    private func action(_ title: String, _ symbol: String, _ run: @escaping () -> Void) -> some View {
+        DetailAction(title: title, symbol: symbol, run: run)
     }
 
     static func tildePath(_ path: String) -> String {
@@ -201,71 +235,26 @@ private struct SessionDetails: View {
     }
 }
 
-/// The session's spend on the card face, glyph then figure: ↑ new input, ↓ output, ⛁r cache read, then dollars.
-/// Claude Code caches every prompt up to its last token, so the API's `input_tokens` stays at a few per reply
-/// while prompts and tool results arrive as cache writes: ↑ adds the two, the input the model saw for the
-/// first time. Cache reads are the conversation re-read each reply. Counts include subagents.
-private struct UsageMetrics: View {
-    let total: UsageTotals
-    let secondary: AnyShapeStyle
+/// A small outlined button in a card's details; fills on hover. Plain button: gestures get no events while
+/// the menu tracks the mouse.
+private struct DetailAction: View {
+    let title: String
+    let symbol: String
+    let run: () -> Void
+    @State private var hovering = false
 
     var body: some View {
-        // Never wider than the text column: a fixed-width row pushed every card past the menu's edge.
-        // Roomy gaps when they fit, tighter ones for long figures, then cache reads drop out.
-        ViewThatFits(in: .horizontal) {
-            row(gap: 12, showsCache: true)
-            row(gap: 8, showsCache: true)
-            row(gap: 8, showsCache: false)
+        Button(action: run) {
+            Label(title, systemImage: symbol)
+                .labelStyle(.titleAndIcon).imageScale(.small)
+                .font(Theme.font(11, .medium)).lineLimit(1)
+                .padding(.horizontal, 8).padding(.vertical, 4)
+                .background(Capsule().fill(Color.primary.opacity(hovering ? 0.14 : 0.07)))
+                .contentShape(Capsule())
         }
-        .lineLimit(1)
-        .foregroundStyle(secondary)
-    }
-
-    private func row(gap: CGFloat, showsCache: Bool) -> some View {
-        // Tight glyph-to-figure pairs, wider gaps between them: each pair reads as one unit.
-        HStack(spacing: gap) {
-            metric(Image(systemName: "arrow.up"), UsageFormat.tokens(newInput), "New input tokens",
-                   help: "New input: \(Self.exact(total.tokens.input)) fresh + \(Self.exact(total.tokens.cacheWrite)) written to cache. Prompts and tool results.")
-            metric(Image(systemName: "arrow.down"), UsageFormat.tokens(total.tokens.output), "Output tokens")
-            if showsCache {
-                metric(CacheGlyph(), UsageFormat.tokens(total.tokens.cacheRead), "Cache read tokens",
-                       help: "Cache read: the conversation so far, re-read from cache with each reply.")
-            }
-            // The dollar sign is the glyph; a "+" says some replies had no known price.
-            Text(UsageFormat.cost(total.cost) + (total.unpriced > 0 ? "+" : ""))
-                .font(Theme.font(10, .semibold).monospacedDigit())
-                .help(total.unpriced > 0
-                      ? "Cost at API prices, subagents included. \(total.unpriced) replies from a model without a known price are left out."
-                      : "Cost at API prices, subagents included.")
-                .accessibilityLabel("Cost \(UsageFormat.cost(total.cost))")
-        }
+        .buttonStyle(.plain)
         .fixedSize()
-    }
-
-    private var newInput: Int { total.tokens.input + total.tokens.cacheWrite }
-
-    private static func exact(_ count: Int) -> String { count.formatted(.number) }
-
-    private func metric(_ glyph: some View, _ value: String, _ name: String, help: String? = nil) -> some View {
-        HStack(spacing: 3) {
-            glyph.font(.system(size: 8, weight: .bold)).accessibilityHidden(true)
-            Text(value).font(Theme.font(10).monospacedDigit())
-        }
-        .help(help ?? name)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(name): \(value)")
-    }
-}
-
-/// A cache read: a database cylinder with a small "r" set low at its right, like a subscript.
-private struct CacheGlyph: View {
-    var body: some View {
-        // The "r" hangs off the cylinder's corner, outside its frame, so the glyph centers on the line like the arrows.
-        Image(systemName: "cylinder")
-            .overlay(alignment: .bottomTrailing) {
-                Text("r").font(.system(size: 6.5, weight: .heavy, design: .rounded)).offset(x: 4, y: 1)
-            }
-            .padding(.trailing, 4)
+        .onHover { hovering = $0 }
     }
 }
 

@@ -131,6 +131,16 @@ public extension UsageLimitWindow {
         let length = TimeInterval(minutes) * 60
         return min(1, max(0, 1 - resetsAt.timeIntervalSince(now) / length))
     }
+
+    /// When the window runs out if use keeps its pace so far, only when that comes before it renews. Nil
+    /// early in the window (under a tenth gone) or with little used, where one burst would swing the guess.
+    func runsOut(at now: Date) -> Date? {
+        guard let elapsed = elapsed(at: now), elapsed >= 0.1, usedFraction >= 0.05, let minutes, let resetsAt else { return nil }
+        guard usedFraction < 1 else { return now }
+        let gone = elapsed * TimeInterval(minutes) * 60
+        let out = now.addingTimeInterval(gone * (1 - usedFraction) / usedFraction)
+        return out < resetsAt ? out : nil
+    }
 }
 
 /// Claude's plan limits as Claude Code caches them per profile, in `.claude.json`

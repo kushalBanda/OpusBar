@@ -173,6 +173,19 @@ final class UsageLimitsSelectionTests: XCTestCase {
         XCTAssertEqual(UsageFormat.countdown(to: date("2026-10-02T16:10:00Z"), now: now), "2d 4h")
     }
 
+    func testRunsOutAtCurrentPace() {
+        let resets = date("2026-09-30T13:00:00Z")
+        // 4 of 5 hours gone, 90 % used: the last 10 % lasts about 27 minutes, before the 1 h reset.
+        let fast = UsageLimitWindow(id: "s", kind: .session, minutes: 300, usedPercent: 90, resetsAt: resets)
+        XCTAssertEqual(fast.runsOut(at: now)?.timeIntervalSince(now) ?? 0, 240 * 60 / 9, accuracy: 1)
+        // 40 % used in 80 % of the time: lasts past the reset.
+        XCTAssertNil(UsageLimitWindow(id: "s", kind: .session, minutes: 300, usedPercent: 40, resetsAt: resets).runsOut(at: now))
+        // Too early in the window to guess.
+        XCTAssertNil(UsageLimitWindow(id: "s", kind: .session, minutes: 300, usedPercent: 30,
+                                      resetsAt: now.addingTimeInterval(290 * 60)).runsOut(at: now))
+        XCTAssertEqual(UsageLimitWindow(id: "s", kind: .session, minutes: 300, usedPercent: 100, resetsAt: resets).runsOut(at: now), now)
+    }
+
     func testPercentText() {
         XCTAssertEqual(UsageFormat.percent(0.824), "82%")
         XCTAssertEqual(UsageFormat.percent(1.4), "100%")
