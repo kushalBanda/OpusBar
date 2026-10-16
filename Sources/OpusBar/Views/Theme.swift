@@ -28,6 +28,9 @@ enum Theme {
         }
     }
 
+    /// A chart series color, stepped for each mode.
+    static func series(light: UInt32, dark: UInt32) -> Color { dynamic(light: light, dark: dark) }
+
     /// The lifted segment of a segmented control: lighter than any surface it sits on, in both modes.
     static let pill = dynamic(light: 0xFFFDF7, dark: 0x55574F)
 

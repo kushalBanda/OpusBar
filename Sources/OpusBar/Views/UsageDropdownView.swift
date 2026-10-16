@@ -54,12 +54,12 @@ struct UsageDropdownView: View {
                 SpendCard(summary: summary)
                 if summary.hasSeveralAccounts {
                     ShareCard(title: "Accounts", symbol: "person.2", shares: AccountSignIn.named(summary.byAccount, accounts: accounts, short: true),
-                              byCost: summary.total.unpriced == 0, limit: 6)
+                              byCost: summary.total.cost > 0, limit: 6, marksAgent: true)
                 }
                 if summary.total.replies > 0 {
                     HStack(alignment: .top, spacing: 8) {
-                        ShareCard(title: "Models", symbol: "cpu", shares: summary.byModel, byCost: summary.total.unpriced == 0)
-                        ShareCard(title: "Projects", symbol: "folder", shares: summary.byProject, byCost: summary.total.unpriced == 0)
+                        ShareCard(title: "Models", symbol: "cpu", shares: summary.byModel, byCost: summary.total.cost > 0)
+                        ShareCard(title: "Projects", symbol: "folder", shares: summary.byProject, byCost: summary.total.cost > 0)
                     }
                     .fixedSize(horizontal: false, vertical: true)
                 }
@@ -100,6 +100,7 @@ private struct CardHeader<Trailing: View>: View {
         HStack(spacing: 5) {
             if let symbol { Image(systemName: symbol).font(.system(size: 10, weight: .semibold)).foregroundStyle(tint) }
             Text(title).font(Theme.font(11, .semibold)).foregroundStyle(.secondary).lineLimit(1)
+                .layoutPriority(1) // the title keeps its width; a trailing legend gives way
             Spacer(minLength: 6)
             trailing
         }
@@ -112,8 +113,6 @@ extension CardHeader where Trailing == EmptyView {
     }
 }
 
-/// One account: its session and the longer window that binds first, each with what is left, a meter with
-/// the even-pace mark, and when it renews.
 /// Accounts billed per use (an API key, a gateway, a cloud provider): no plan, so no limits to wait for.
 private struct PerUseCard: View {
     let accounts: [AccountSignIn]
@@ -142,6 +141,7 @@ private struct PerUseCard: View {
     }
 }
 
+/// One account: its session and the longer window that binds first, side by side.
 private struct LimitsCard: View {
     let limits: UsageLimits
     let showsAccount: Bool
@@ -162,42 +162,57 @@ private struct LimitsCard: View {
                 Spacer(minLength: 6)
                 // An old reading is still the latest known; say how old once it could have missed use.
                 if now.timeIntervalSince(limits.observedAt) > 600 {
-                    Text("updated \(limits.observedAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)))")
-                        .font(Theme.font(10, .regular)).foregroundStyle(.tertiary).lineLimit(1)
+                    // "57m ago", short, so it never pushes the account name out.
+                    Text("\(UsageFormat.countdown(to: now, now: limits.observedAt)) ago")
+                        .font(Theme.font(10, .regular)).foregroundStyle(.tertiary).lineLimit(1).fixedSize()
+                        .help("Updated \(limits.observedAt.formatted(date: .abbreviated, time: .shortened))")
                 }
             }
-            ForEach(limits.shown(at: now)) { window in
-                LimitRow(agent: limits.agent, window: window, now: now)
+            // The windows side by side: one row per account instead of one per window.
+            HStack(alignment: .top, spacing: 14) {
+                ForEach(limits.shown(at: now)) { window in
+                    LimitColumn(agent: limits.agent, window: window, now: now)
+                }
             }
         }
         .accessibilityElement(children: .combine)
     }
 }
 
-private struct LimitRow: View {
+/// One window: its name and what is left, the meter with the even-pace mark, then when it renews, or, when
+/// the pace so far would spend it first, when it runs out.
+private struct LimitColumn: View {
     let agent: AgentKind
     let window: UsageLimitWindow
     let now: Date
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Text(window.label).font(Theme.font(11, .medium)).lineLimit(1)
-                if let resets = window.resetsAt {
-                    Label(UsageFormat.countdown(to: resets, now: now), systemImage: "arrow.clockwise")
-                        .labelStyle(.titleAndIcon).imageScale(.small)
-                        .font(Theme.font(10, .regular)).foregroundStyle(.secondary).lineLimit(1)
-                        .help("Resets \(UsageFormat.resetTime(resets, now: now))")
-                }
+        let out = window.runsOut(at: now)
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(window.label).font(Theme.font(11, .medium)).foregroundStyle(.secondary).lineLimit(1)
                 Spacer(minLength: 4)
                 Text("\(UsageFormat.percent(window.remainingFraction)) left")
-                    .font(Theme.font(12, .semibold)).monospacedDigit()
+                    .font(Theme.font(12, .semibold)).monospacedDigit().lineLimit(1)
                     .foregroundStyle(level ?? Theme.ink)
                     .contentTransition(.numericText())
             }
             Meter(value: window.remainingFraction, pace: window.elapsed(at: now).map { 1 - $0 },
                   tint: level ?? Theme.agent(agent))
+            if let out {
+                Label(out <= now ? "Out until reset" : "Out in \(UsageFormat.countdown(to: out, now: now)) at this pace",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .labelStyle(.titleAndIcon).imageScale(.small)
+                    .font(Theme.font(10, .medium)).foregroundStyle(Color.orange).lineLimit(1).minimumScaleFactor(0.85)
+                    .help(window.resetsAt.map { "Renews \(UsageFormat.resetTime($0, now: now)), in \(UsageFormat.countdown(to: $0, now: now))" } ?? "")
+            } else if let resets = window.resetsAt {
+                Label("Renews in \(UsageFormat.countdown(to: resets, now: now))", systemImage: "arrow.clockwise")
+                    .labelStyle(.titleAndIcon).imageScale(.small)
+                    .font(Theme.font(10, .regular)).foregroundStyle(.secondary).lineLimit(1)
+                    .help("Renews \(UsageFormat.resetTime(resets, now: now))")
+            }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     /// Orange from 80 % spent, red from 95 %.
@@ -244,13 +259,10 @@ private struct SpendCard: View {
         UsageCard {
             CardHeader(title: pointed.map { label($0.start, long: true) } ?? "API value", symbol: "dollarsign.circle") {
                 if agents.count > 1 {
-                    HStack(spacing: 8) {
-                        ForEach(agents, id: \.self) { agent in
-                            HStack(spacing: 3) {
-                                AgentLogo(agent: agent, size: 11)
-                                Text(agent.displayName).font(Theme.font(10, .medium)).foregroundStyle(.secondary)
-                            }
-                        }
+                    // Names while they fit on one line beside the title; logos alone (named in the tooltip) when not.
+                    ViewThatFits(in: .horizontal) {
+                        legend(agents, named: true)
+                        legend(agents, named: false)
                     }
                 }
             }
@@ -264,9 +276,24 @@ private struct SpendCard: View {
                 Text("No usage in this range yet.").font(Theme.font(11, .regular)).foregroundStyle(.secondary)
             } else {
                 TrendBars(bars: bars, agents: agents.isEmpty ? AgentKind.allCases : agents,
-                          byCost: summary.total.unpriced == 0, hovered: $hovered)
+                          byCost: summary.total.cost > 0, hovered: $hovered)
                     .frame(height: 56)
                 axis(bars)
+            }
+        }
+    }
+
+    private func legend(_ agents: [AgentKind], named: Bool) -> some View {
+        HStack(spacing: 8) {
+            ForEach(agents, id: \.self) { agent in
+                HStack(spacing: 3) {
+                    AgentLogo(agent: agent, size: 11)
+                    if named {
+                        Text(agent.displayName).font(Theme.font(10, .medium)).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                }
+                .fixedSize()
+                .help(agent.displayName)
             }
         }
     }
@@ -358,6 +385,8 @@ private struct ShareCard: View {
     let shares: [UsageShare]
     let byCost: Bool
     var limit = 3
+    /// Lead each row with its agent's logo, where names alone repeat (one email on Claude and on Codex).
+    var marksAgent = false
 
     var body: some View {
         let shown = Array(shares.prefix(limit))
@@ -369,9 +398,11 @@ private struct ShareCard: View {
                 ForEach(shown) { share in
                     VStack(alignment: .leading, spacing: 3) {
                         HStack(spacing: 4) {
+                            if marksAgent, let agent = share.agent { AgentLogo(agent: agent, size: 11) }
                             Text(share.name).font(Theme.font(11, .medium)).lineLimit(1).truncationMode(.middle)
                             Spacer(minLength: 4)
-                            Text(byCost ? UsageFormat.cost(share.totals.cost) : UsageFormat.tokens(share.totals.tokens.total))
+                            // Dollars when the row has a price; tokens for a model without one.
+                            Text(byCost && share.totals.cost > 0 ? UsageFormat.cost(share.totals.cost) : UsageFormat.tokens(share.totals.tokens.total))
                                 .font(Theme.font(10, .medium)).monospacedDigit().foregroundStyle(.secondary)
                         }
                         GeometryReader { geometry in

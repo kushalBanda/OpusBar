@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.16
+
+- Settings › Usage is laid out again: figure tiles on one grid, the trend beside the token mix, a card per agent, then models, projects and accounts. Every row lines up edge to edge.
+- Pick Overview, Claude Code or Codex at the top of Settings › Usage to see one agent's figures; its tiles break tokens into input, output, cache read and cache write.
+- Plan limits in the Usage tab sit side by side, one row per account, with when each renews. A limit your pace would spend before it renews says when it runs out.
+- Accounts in the Usage tab lead with their Claude or Codex logo, and lists show dollars wherever a price is known.
+- Session cards show what matters at a glance: the project, what it is doing and for how long, and what it has cost, with the agent as a badge on the cat. Tap a card for its folder, terminal, tokens and billing, and to open its folder, copy its path or bring its terminal forward.
+- Section headers in the Sessions tab are lighter, each with a dot in its cards' color.
+
 ## 0.1.15
 
 - The plan limit cards at the top of the Usage tab carry the same badged Claude or Codex logo as the session cards.

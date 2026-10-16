@@ -57,31 +57,37 @@ struct SettingsView: View {
     let store: SessionStore
     let usage: UsageModel
     let updater: Updater
+    /// The whole pane at its own height instead of a scroll view, for `--dump-settings`.
+    var unscrolled = false
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
             sidebar
-            ScrollViewReader { proxy in
-                ScrollView {
-                    pane
-                        .id(navigation.pane)
-                        .transition(.opacity)
-                        .padding(28)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                #if DEBUG
-                // `--scroll <anchor id>` scrolls to that view on open, for screenshots.
-                .onAppear {
-                    let args = ProcessInfo.processInfo.arguments
-                    if let i = args.firstIndex(of: "--scroll"), i + 1 < args.count {
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { proxy.scrollTo(args[i + 1], anchor: .bottom) }
+            if unscrolled {
+                pane.padding(28).frame(maxWidth: .infinity, alignment: .topLeading).frame(maxHeight: .infinity, alignment: .top)
+            } else {
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        pane
+                            .id(navigation.pane)
+                            .transition(.opacity)
+                            .padding(28)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    #if DEBUG
+                    // `--scroll <anchor id>` scrolls to that view on open, for screenshots.
+                    .onAppear {
+                        let args = ProcessInfo.processInfo.arguments
+                        if let i = args.firstIndex(of: "--scroll"), i + 1 < args.count {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { proxy.scrollTo(args[i + 1], anchor: .bottom) }
+                        }
+                    }
+                    #endif
                 }
-                #endif
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: navigation.pane)
             }
-            .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: navigation.pane)
         }
         .background(Theme.canvas)
         .foregroundStyle(Theme.ink)
@@ -89,7 +95,7 @@ struct SettingsView: View {
         .environment(\.catCoat, preferences.coat)
         .environment(\.catPoses, preferences.poses)
         .font(Theme.font(13)) // default for buttons and labels without their own font
-        .frame(width: 820, height: 600)
+        .frame(width: 820, height: unscrolled ? nil : 600)
     }
 
     private var sidebar: some View {

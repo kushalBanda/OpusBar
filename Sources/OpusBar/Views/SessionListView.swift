@@ -204,7 +204,7 @@ struct SessionListView: View {
     private func group(_ sessions: [Session], title: String, sections: SessionSections, now: Date) -> some View {
         if !sessions.isEmpty {
             if sections.isGrouped {
-                Section { rows(sessions, now: now) } header: { SectionHeader(title: title, count: sessions.count) }
+                Section { rows(sessions, now: now) } header: { SectionHeader(title: title, count: sessions.count, tint: title == "Attention" ? Theme.yellow : Theme.blue) }
             } else {
                 rows(sessions, now: now)
             }
@@ -218,7 +218,7 @@ struct SessionListView: View {
                 Section {
                     if showsIdle { rows(sections.idle, now: now) }
                 } header: {
-                    SectionHeader(title: "Idle", count: sections.idle.count, isOpen: showsIdle) {
+                    SectionHeader(title: "Idle", count: sections.idle.count, tint: SessionState.idle.tileColor, isOpen: showsIdle) {
                         withAnimation(reduceMotion ? nil : Self.spring) { showsIdle.toggle() }
                     }
                 }
@@ -253,34 +253,44 @@ final class PopoverLayout {
     var screenHeight: CGFloat = NSScreen.main?.visibleFrame.height ?? 800
 }
 
-/// Section title with its count. With `toggle`, the header folds its section (used for Idle).
+/// Section title with its count, led by a dot in its cards' tile color; no fill, so the cards stay the
+/// only surfaces. With `toggle`, the header folds its section (used for Idle) and highlights on hover.
 private struct SectionHeader: View {
     let title: String
     let count: Int
+    let tint: Color
     var isOpen = true
     var toggle: (() -> Void)?
+    @State private var hovering = false
 
     var body: some View {
         let label = HStack(spacing: 6) {
-            Text(title).font(Theme.font(11, .semibold))
-            Text("\(count)").font(Theme.font(11, .medium).monospacedDigit()).foregroundStyle(.secondary)
+            Circle().fill(tint).frame(width: 6, height: 6)
+            Text(title).font(Theme.font(11, .semibold)).foregroundStyle(.secondary)
+            Text("\(count)").font(Theme.font(10, .semibold).monospacedDigit()).foregroundStyle(.secondary)
+                .padding(.horizontal, 5).padding(.vertical, 1)
+                .background(Capsule().fill(Color.primary.opacity(0.07)))
             Spacer()
             if toggle != nil {
+                Text(isOpen ? "Hide" : "Show").font(Theme.font(10, .medium)).foregroundStyle(.secondary)
+                    .opacity(hovering ? 1 : 0)
                 Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
+                    .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.secondary)
                     .rotationEffect(.degrees(isOpen ? 90 : 0))
             }
         }
         .padding(.horizontal, 6)
-        .padding(.vertical, 5)
+        .padding(.top, 6)
+        .padding(.bottom, 2)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(toggle != nil && hovering ? 0.06 : 0)))
         .contentShape(Rectangle())
 
         if let toggle {
             Button(action: toggle) { label }
                 .buttonStyle(.plain)
+                .onHover { hovering = $0 }
                 .accessibilityLabel("\(title), \(count) sessions")
                 .accessibilityHint(isOpen ? "Hides them" : "Shows them")
         } else {

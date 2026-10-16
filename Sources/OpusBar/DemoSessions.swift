@@ -75,7 +75,7 @@ enum DemoSessions {
             for (agent, root, _, _, model, weight) in accounts where random() < 0.35 * weight * ramp {
                 let scale = random() > 0.92 ? 3.0 : 1.0
                 var record = UsageRecord(agent: agent, date: date, model: model, project: projects[Int(random() * 5)],
-                                         session: "demo", tokens: UsageTokens(input: Int(4_000 * scale), cacheWrite: Int(60_000 * scale),
+                                         session: "demo-\(Int(random() * 40))", tokens: UsageTokens(input: Int(4_000 * scale), cacheWrite: Int(60_000 * scale),
                                                                               cacheRead: Int(900_000 * scale * random()), output: Int(9_000 * scale)))
                 record.account = root
                 record.cost = (agent == .claude ? 1.6 : 0.7) * scale * (0.5 + random())
@@ -84,8 +84,13 @@ enum DemoSessions {
         }
         let names = Dictionary(uniqueKeysWithValues: accounts.map { ($0.1, $0.2) })
         var summaries: [UsageRange: UsageSummary] = [:]
+        var agentSummaries: [AgentKind: [UsageRange: UsageSummary]] = [:]
         for range in UsageRange.allCases {
             summaries[range] = UsageSummary.make(records: records, range: range, now: now, names: names)
+            for agent in AgentKind.allCases {
+                agentSummaries[agent, default: [:]][range] = UsageSummary.make(records: records, range: range, now: now,
+                                                                              names: names, agent: agent)
+            }
         }
         func window(_ kind: UsageLimitWindow.Kind, _ minutes: Int, used: Double, resets: TimeInterval) -> UsageLimitWindow {
             UsageLimitWindow(id: "\(minutes)", kind: kind, minutes: minutes, usedPercent: used, resetsAt: now.addingTimeInterval(resets))
@@ -102,7 +107,7 @@ enum DemoSessions {
                         observedAt: now, source: .sessionLog),
         ]
         let signIns = accounts.map { AccountSignIn(agent: $0.0, root: $0.1, label: $0.2, method: $0.3) }
-        usage.show(summaries: summaries, limits: limits, signIns: signIns)
+        usage.show(summaries: summaries, agentSummaries: agentSummaries, limits: limits, signIns: signIns)
     }
 }
 #endif

@@ -65,7 +65,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         navigation.pane = pane
         let view = NSHostingView(rootView: SettingsView(navigation: navigation, preferences: preferences, hooks: hooks,
                                                         launchAtLogin: launchAtLogin, notifier: notifier, store: store,
-                                                        usage: usage, updater: updater))
+                                                        usage: usage, updater: updater, unscrolled: true))
         let size = view.fittingSize
         let window = NSWindow(contentRect: NSRect(x: -10_000, y: -10_000, width: max(size.width, 760), height: max(size.height, 600)),
                               styleMask: .borderless, backing: .buffered, defer: false)
