@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.17
+
+- Notifications use the standard macOS layout: app icon on the left, title and message beside it, time at the top right. The cat thumbnail on the right is gone, so the text no longer sits out of line.
+
 ## 0.1.16
 
 - Settings › Usage is laid out again: figure tiles on one grid, the trend beside the token mix, a card per agent, then models, projects and accounts. Every row lines up edge to edge.

@@ -166,9 +166,6 @@ final class SessionNotifier: NSObject {
         content.threadIdentifier = notice.thread
         // Done is informational; only needs-you and errors make a sound.
         if notice.state != .done { content.sound = .default }
-        if let cat = NotificationCat.attachment(state: notice.state, coat: preferences.coat, poses: preferences.poses) {
-            content.attachments = [cat]
-        }
         center.add(UNNotificationRequest(identifier: Self.identifier(notice.sessionId), content: content, trigger: nil)) { error in
             if let error { Self.log.error("post failed: \(error.localizedDescription, privacy: .public)") }
             Task { @MainActor in completion(error == nil) }
