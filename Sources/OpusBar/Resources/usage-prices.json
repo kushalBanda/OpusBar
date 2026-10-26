@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-09-30",
+  "updated": "2026-10-26",
   "sources": [
     "https://platform.claude.com/docs/en/about-claude/pricing",
     "https://developers.openai.com/api/docs/pricing"
@@ -8,7 +8,7 @@
   "notes": [
     "USD per million tokens at API list prices. cacheWrite = 5-minute write (Claude) or cache write (OpenAI); cacheWrite1h = Claude 1-hour write. A missing cacheWrite bills at the input price.",
     "Claude fast mode is 2x on Opus 5.5, Opus 5, Opus 4.8 (official). OpenAI fast multipliers per model follow the Priority tier; rows no longer on the official page (older codex models) keep their last published price.",
-    "Claude 4.6+ and Mythos Preview bill the full 1M context at standard rates, so no Claude long-context premium. OpenAI: over 272K input tokens, input-side rates x2 and output x1.5."
+    "Claude 4.6+ (except Haiku 5.5) and Mythos Preview bill the full 1M context at standard rates. Haiku 5.5: over 100K prompt tokens, every rate x5. OpenAI: over 272K input tokens, input-side rates x2 and output x1.5."
   ],
   "claude": {
     "webSearch": 0.01,
@@ -31,6 +31,7 @@
       { "id": "claude-sonnet-4-6", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWrite1h": 6 },
       { "id": "claude-sonnet-4-5", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWrite1h": 6 },
       { "id": "claude-sonnet-4", "input": 3, "output": 15, "cacheRead": 0.3, "cacheWrite": 3.75, "cacheWrite1h": 6 },
+      { "id": "claude-haiku-5-5", "input": 0.1, "output": 0.5, "cacheRead": 0.01, "cacheWrite": 0.125, "cacheWrite1h": 0.2, "longContext": { "above": 100000, "input": 5, "output": 5 } },
       { "id": "claude-haiku-4-5", "input": 1, "output": 5, "cacheRead": 0.1, "cacheWrite": 1.25, "cacheWrite1h": 2 },
       { "id": "claude-3-5-haiku", "input": 0.8, "output": 4, "cacheRead": 0.08, "cacheWrite": 1, "cacheWrite1h": 1.6 }
     ]
