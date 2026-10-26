@@ -3,6 +3,7 @@
 ## 0.1.18
 
 - Usage prices Claude Haiku 5.5 replies, including its higher rates for prompts over 100,000 tokens. They used to show as replies without a known price.
+- Every price in the list was checked against Anthropic's and OpenAI's pricing pages. Claude Sonnet 5.5 cache reads now cost $0.10 per million tokens, not $0.20. GPT-6.1 Sol replies in fast mode cost twice the standard rate, and GPT-5.5 Cyber now has a price.
 
 ## 0.1.17
 
