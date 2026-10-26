@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.18
+
+- Usage prices Claude Haiku 5.5 replies, including its higher rates for prompts over 100,000 tokens. They used to show as replies without a known price.
+
 ## 0.1.17
 
 - Notifications use the standard macOS layout: app icon on the left, title and message beside it, time at the top right. The cat thumbnail on the right is gone, so the text no longer sits out of line.

@@ -19,7 +19,7 @@ final class UsagePriceListTests: XCTestCase {
     }
 
     func testBundledListDecodes() {
-        XCTAssertEqual(list.updated, "2026-09-30")
+        XCTAssertEqual(list.updated, "2026-10-26")
         XCTAssertGreaterThan(list.claude.count, 10)
         XCTAssertGreaterThan(list.openai.count, 10)
     }
@@ -58,6 +58,16 @@ final class UsagePriceListTests: XCTestCase {
         let long = UsageTokens(input: 300_000, output: 100_000)
         XCTAssertEqual(try XCTUnwrap(list.cost(record("gpt-5.4", long))), 0.75 * 2 + 1.5 * 1.5, accuracy: 1e-9)
         XCTAssertEqual(try XCTUnwrap(list.cost(record("gpt-5.4", long, fast: true))), (0.75 * 2 + 1.5 * 1.5) * 2, accuracy: 1e-9)
+    }
+
+    func testHaikuLongPromptPremium() throws {
+        // Haiku 5.5: input 0.1, 5 min writes 0.125, reads 0.01, output 0.5; every rate x5 past 100K prompt tokens
+        let short = UsageTokens(input: 50_000, cacheWrite: 20_000, cacheRead: 30_000, output: 10_000)
+        XCTAssertEqual(try XCTUnwrap(list.cost(record("claude-haiku-5-5", short))),
+                       (5_000 + 2_500 + 300 + 5_000) / 1e6, accuracy: 1e-12)
+        let long = UsageTokens(input: 50_000, cacheWrite: 20_000, cacheRead: 30_001, output: 10_000)
+        XCTAssertEqual(try XCTUnwrap(list.cost(record("claude-haiku-5-5", long))),
+                       (5_000 + 2_500 + 300.01 + 5_000) * 5 / 1e6, accuracy: 1e-12, "cache reads count toward the prompt")
     }
 
     func testBrokenListIsRefusedAsAWhole() {
