@@ -58,7 +58,19 @@ Claude Code and Codex, in any terminal, tmux pane or editor. Running agents show
 
 ### Notifications
 
-A notification when a session needs you or hits an error. Finished sessions can ping too; that one starts off, since it gets chatty with many sessions.
+A notification when a session needs you or hits an error. Finished sessions can ping too; that one starts off, since it gets chatty with many sessions. Each notification names the app the session runs in.
+
+### Back to the session in one click
+
+Click a notification, or **Show in** on a session card, and OpusBar takes you to that session wherever it runs. It finds the app on its own, from the process tree.
+
+| Where the session runs | Where the click lands |
+| --- | --- |
+| Terminal, iTerm2, Ghostty, tmux, Orca | the exact tab, pane or split |
+| VS Code, Cursor and other VS Code editors | the session's project window |
+| Any other app | the window that shows the session's folder, else the app |
+
+Terminal and Ghostty ask once for Automation, and other apps ask once for Accessibility, the first time a click needs it. Say no and the click still brings the right app forward. **Settings › Notifications** shows each permission and what it adds.
 
 ### Plan limits
 
@@ -120,18 +132,20 @@ Updates install themselves: OpusBar downloads each one in the background, checks
 Everything stays on your Mac. There's no account, no telemetry and no analytics. Here is the complete list.
 
 **It reads:**
-- **Hook events from your agents.** The hook keeps [eleven fields](docs/adr/4-local-only-slim-events.md), including session id, event name, folder and tool name. It also keeps the agent's process id and four terminal variables (`TERM_PROGRAM`, `TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX`). The rest of each event, including your prompts, code and replies, is dropped inside the hook before it reaches OpusBar.
+- **Hook events from your agents.** The hook keeps [eleven fields](docs/adr/4-local-only-slim-events.md), including session id, event name, folder and tool name. It also keeps the agent's process id and five terminal variables (`TERM_PROGRAM`, `TERM_SESSION_ID`, `ITERM_SESSION_ID`, `TMUX`, `ORCA_TERMINAL_HANDLE`). The rest of each event, including your prompts, code and replies, is dropped inside the hook before it reaches OpusBar.
 - **Your agents' session logs**, for usage. Per reply, only the time, model, project folder, session id and token counts are kept, and nothing older than 90 days.
 - **Plan limits**:
   - the figures Claude Code hands its status line
   - the limits Claude Code caches in each profile's `.claude.json`, along with that account's id and email, used to tell accounts apart
   - the limits in Codex's own logs
-- **The process list**: each agent process's arguments and working folder, never its environment. Also the session files that match processes to sessions.
+- **The process list**: each agent process's arguments and working folder, never its environment. Also the session files that match processes to sessions, and the parent processes up to the app that hosts each session.
 - **`.git/HEAD`** in each session's folder, for the branch name.
 
 **It writes:**
 - Hook entries, only in the agents you connect: each Claude profile's `settings.json` (plus the status line wrapper) and Codex's `hooks.json`. Each file is backed up before any change.
 - Its own folder, `~/Library/Application Support/OpusBar`. That holds a copy of the hook, the backups, the latest Claude limits and the socket the hook talks to.
+
+**When you click a notification, it drives:** only the app that hosts that session. It selects the tab through iTerm2's reveal link, AppleScript (Terminal, iTerm2, Ghostty), the `orca` or `tmux` command line, or Accessibility to raise a window. Nothing runs until you click.
 
 **It sends:** one request, a daily update check to GitHub carrying only OpusBar's version. Turn it off in **Settings › About**.
 
