@@ -175,7 +175,7 @@ Something else? [Open an issue](https://github.com/kushalBanda/OpusBar/issues).
 
 ## What's new
 
-Every release and what changed in it: [CHANGELOG.md](CHANGELOG.md). OpusBar also shows the latest notes in the menu after it updates.
+Every release and what changed in it: [CHANGELOG.md](CHANGELOG.md). When a new version is out, a card at the top of the menu offers it; after the update, the menu shows what changed.
 
 ## Build from source
 

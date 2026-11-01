@@ -61,6 +61,7 @@ public final class Preferences {
         static let checkForUpdates = "checkForUpdates"
         static let installUpdates = "installUpdatesAutomatically"
         static let whatsNew = "whatsNew"
+        static let updateCardDismissed = "updateCardDismissed"
     }
 
     public var animateCat: Bool { didSet { defaults.set(animateCat, forKey: Key.animateCat) } }
@@ -81,6 +82,8 @@ public final class Preferences {
     public var whatsNew: WhatsNew? {
         didSet { defaults.set(whatsNew.flatMap { try? JSONEncoder().encode($0) }, forKey: Key.whatsNew) }
     }
+    /// The release version whose update card the user put off with "Later"; a newer one shows again.
+    public var updateCardDismissed: String? { didSet { defaults.set(updateCardDismissed, forKey: Key.updateCardDismissed) } }
     /// A notification when a plan window reaches 80 % and 95 % used.
     public var notifyLimitWarning: Bool { didSet { defaults.set(notifyLimitWarning, forKey: Key.notifyLimitWarning) } }
     /// Accounts (`UsageLimits.id`) whose limit notifications (resets and warnings) stay quiet.
@@ -113,6 +116,7 @@ public final class Preferences {
         checkForUpdates = defaults.object(forKey: Key.checkForUpdates) as? Bool ?? true
         installUpdatesAutomatically = defaults.object(forKey: Key.installUpdates) as? Bool ?? true
         whatsNew = defaults.data(forKey: Key.whatsNew).flatMap { try? JSONDecoder().decode(WhatsNew.self, from: $0) }
+        updateCardDismissed = defaults.string(forKey: Key.updateCardDismissed)
         notifyLimitWarning = defaults.object(forKey: Key.notifyLimitWarning) as? Bool ?? true
         limitResetMuted = Set(defaults.stringArray(forKey: Key.limitResetMuted) ?? [])
         coat = defaults.string(forKey: Key.coat).flatMap(CatCoat.init) ?? .classic

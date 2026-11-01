@@ -53,15 +53,18 @@ struct SessionListView: View {
                     .contentTransition(.numericText())
             }
             .padding(.horizontal, 4)
+            // Update cards sit above the tabs: the menu opens on Usage, so a card inside Sessions goes unseen.
+            if let release = updater.offered, preferences.updateCardDismissed != release.version.description {
+                UpdateCard(updater: updater, release: release, later: { preferences.updateCardDismissed = release.version.description })
+            } else if let note = preferences.whatsNew, note.version == Updater.current?.description {
+                WhatsNewCard(note: note, fullNotes: { updater.openReleasePage(version: note.version) },
+                             dismiss: { preferences.whatsNew = nil })
+            }
             // Both tabs stay laid out, one over the other, so the menu keeps the taller one's height and never
             // resizes or jumps on a switch; the hidden one takes no clicks and is hidden from VoiceOver.
             ZStack(alignment: .top) {
                 page(.sessions) {
                     VStack(alignment: .leading, spacing: 10) {
-                        if let note = preferences.whatsNew, note.version == Updater.current?.description {
-                            WhatsNewCard(note: note, fullNotes: { updater.openReleasePage(version: note.version) },
-                                         dismiss: { preferences.whatsNew = nil })
-                        }
                         if Preferences.offersConnect(anyConnected: hooks.anyConnected, anyConnectable: hooks.anyConnectable,
                                                      dismissed: preferences.connectCardDismissed) {
                             ConnectCard(connect: { openSettings(.agents) }, dismiss: { preferences.connectCardDismissed = true })
