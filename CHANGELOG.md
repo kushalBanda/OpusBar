@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.20
+
+- The menu opens on the Usage tab, now first in the bar.
+- Switching between 24 h, 7 d, 30 d and 90 d fades instead of jumping; the menu keeps its height.
+- An opened session card stays inside the menu. When its buttons don't fit, "Open folder" and "Copy path" turn into icons, named on hover.
+- Check Now in Settings › About keeps its place while it checks, and a double click checks once.
+
 ## 0.1.19
 
 - Click a session notice to go back to that session. OpusBar finds the app it runs in by itself, and the notice names it: "Claude Code · Orca · myproject".

@@ -178,20 +178,31 @@ private struct SessionDetails: View {
                     .font(Theme.font(11, .regular)).foregroundStyle(secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            HStack(spacing: 6) {
-                if session.host?.appPath != nil {
-                    action("Show in \(session.host?.appName ?? "app")", "macwindow") { showSession(session) }
-                }
-                action("Open folder", "folder") {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])
-                }
-                action("Copy path", "doc.on.doc") {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(session.cwd, forType: .string)
-                }
+            // Full labels while they fit; then the folder actions as icons (named on hover); then all icons.
+            // The buttons keep their size, so without this a long app name pushes the card past the menu's edge.
+            ViewThatFits(in: .horizontal) {
+                actions(compactFolder: false, compactShow: false)
+                actions(compactFolder: true, compactShow: false)
+                actions(compactFolder: true, compactShow: true)
             }
         }
         .padding(.leading, 52) // lines up with the text column, past the cat tile
+    }
+
+    @MainActor
+    private func actions(compactFolder: Bool, compactShow: Bool) -> some View {
+        HStack(spacing: 6) {
+            if session.host?.appPath != nil {
+                action("Show in \(session.host?.appName ?? "app")", "macwindow", compact: compactShow) { showSession(session) }
+            }
+            action("Open folder", "folder", compact: compactFolder) {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])
+            }
+            action("Copy path", "doc.on.doc", compact: compactFolder) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(session.cwd, forType: .string)
+            }
+        }
     }
 
     private var liveStatesHint: String {
@@ -214,8 +225,8 @@ private struct SessionDetails: View {
         }
     }
 
-    private func action(_ title: String, _ symbol: String, _ run: @escaping () -> Void) -> some View {
-        DetailAction(title: title, symbol: symbol, run: run)
+    private func action(_ title: String, _ symbol: String, compact: Bool, _ run: @escaping () -> Void) -> some View {
+        DetailAction(title: title, symbol: symbol, compact: compact, run: run)
     }
 
     static func tildePath(_ path: String) -> String {
@@ -240,13 +251,15 @@ private struct SessionDetails: View {
 private struct DetailAction: View {
     let title: String
     let symbol: String
+    /// Icon only, named in the tooltip and to VoiceOver.
+    var compact = false
     let run: () -> Void
     @State private var hovering = false
 
     var body: some View {
         Button(action: run) {
             Label(title, systemImage: symbol)
-                .labelStyle(.titleAndIcon).imageScale(.small)
+                .labelStyle(DetailLabelStyle(compact: compact)).imageScale(.small)
                 .font(Theme.font(11, .medium)).lineLimit(1)
                 .padding(.horizontal, 8).padding(.vertical, 4)
                 .background(Capsule().fill(Color.primary.opacity(hovering ? 0.14 : 0.07)))
@@ -254,7 +267,21 @@ private struct DetailAction: View {
         }
         .buttonStyle(.plain)
         .fixedSize()
+        .help(compact ? title : "")
+        .accessibilityLabel(title)
         .onHover { hovering = $0 }
+    }
+}
+
+private struct DetailLabelStyle: LabelStyle {
+    let compact: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if compact {
+            configuration.icon.padding(.vertical, 1)
+        } else {
+            Label(configuration).labelStyle(.titleAndIcon)
+        }
     }
 }
 

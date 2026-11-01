@@ -29,11 +29,11 @@ struct SessionListView: View {
     /// Kept while the app runs: the menu reopens on the tab it closed on.
     @State private var tab: DropdownTab = {
         #if DEBUG
-        // `--tab usage` opens the Usage tab, for screenshots.
+        // `--tab sessions` opens the Sessions tab, for screenshots.
         let args = ProcessInfo.processInfo.arguments
         if let i = args.firstIndex(of: "--tab"), i + 1 < args.count, let tab = DropdownTab(rawValue: args[i + 1]) { return tab }
         #endif
-        return .sessions
+        return .usage
     }()
 
     /// Idle sessions fold into one row once the list is long; the user can open it.

@@ -614,7 +614,11 @@ private struct UpdatesTile: View {
             Button("Release Notes") { updater.openReleasePage() }
             Button("Relaunch Now") { updater.install() }
                 .buttonStyle(.borderedProminent).tint(Theme.green).foregroundStyle(Theme.onColor)
-        case .checking, .installing:
+        case .checking:
+            // The button stays put so the row doesn't jump; a second click lands on a disabled button.
+            ProgressView().controlSize(.small)
+            Button("Check Now") {}.disabled(true)
+        case .installing:
             ProgressView().controlSize(.small)
         case .failed where updater.offered != nil:
             Button("Download from GitHub") { updater.openReleasePage() }
@@ -643,7 +647,7 @@ private struct UpdatesTile: View {
         case .installing: "OpusBar quits and opens again when it's done."
         case .upToDate(let date): "Checked \(date.formatted(date: .omitted, time: .shortened))."
         case .failed(let reason): reason
-        case .checking: nil
+        case .checking: "Asking GitHub for the latest version."
         case .idle: Updater.current == nil ? "This is a development build; it doesn't update itself." : nil
         }
     }

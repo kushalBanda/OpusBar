@@ -82,12 +82,17 @@ final class Updater {
         if case .checking = state { return }
         if case .installing = state { return }
         state = .checking
+        let started = ContinuousClock.now
         Task {
             do {
                 var request = URLRequest(url: Self.feedURL, timeoutInterval: 20)
                 request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
                 request.setValue(Self.userAgent, forHTTPHeaderField: "User-Agent")
-                let (data, response) = try await URLSession.shared.data(for: request)
+                let result: Result<(Data, URLResponse), Error>
+                do { result = .success(try await URLSession.shared.data(for: request)) } catch { result = .failure(error) }
+                // GitHub often answers in a blink; a short minimum keeps "Checking…" from flashing.
+                try? await Task.sleep(until: started + .milliseconds(700), clock: .continuous)
+                let (data, response) = try result.get()
                 let status = (response as? HTTPURLResponse)?.statusCode ?? 0
                 // 404: no release published yet.
                 guard status == 200 || status == 404 else { throw UpdateError.server(status) }
