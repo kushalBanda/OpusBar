@@ -26,6 +26,7 @@ One decision per file: context, decision, consequences. Never rewrite an accepte
 | [24](24-live-claude-limits-from-the-status-line.md) | Live Claude limits: the hook steps in front of each connected profile's status line and saves `rate_limits` | Accepted |
 | [25](25-automatic-updates-and-whats-new.md) | Updates download in the background and swap in on quit; a card shows what changed | Accepted |
 | [26](26-agent-logos-in-usage-views.md) | Claude Code and Codex logos replace the colour dots in usage views | Accepted |
+| [27](27-click-opens-the-session.md) | A notice click opens the session's app, tab or window; amends 15 | Accepted |
 
 Template:
 

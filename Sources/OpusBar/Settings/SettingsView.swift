@@ -311,6 +311,7 @@ struct NotificationsPane: View {
     let usage: UsageModel
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var permissions = FocusPermissions()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -328,12 +329,16 @@ struct NotificationsPane: View {
                 row(.done, "A session finishes", "Each turn that ends, so you can come back to it.", $preferences.notifyDone)
             }
             limitResets.padding(.top, 8)
+            clickReach.padding(.top, 8)
             footer.padding(.top, 12)
         }
         .animation(reduceMotion ? .easeOut(duration: 0.15) : .spring(response: 0.3, dampingFraction: 1), value: notifier.access)
-        .onAppear { notifier.refreshAccess() }
+        .onAppear { notifier.refreshAccess(); permissions.refresh() }
         // Back from System Settings: show what the user just changed there.
-        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in notifier.refreshAccess() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            notifier.refreshAccess()
+            permissions.refresh()
+        }
         .onChange(of: preferences.anyNotificationOn) { _, on in if on { notifier.requestAccess() } }
     }
 
@@ -376,6 +381,67 @@ struct NotificationsPane: View {
                 .opacity(anyLimitNotice ? 1 : 0.5)
             }
         }
+    }
+
+    /// How far a click on a notice can reach, and the permission each level needs. Without one,
+    /// the click still brings the session's app forward.
+    private var clickReach: some View {
+        Tile {
+            HStack(spacing: 14) {
+                Image(systemName: "cursorarrow.click.2").font(.system(size: 20)).foregroundStyle(Theme.onColor)
+                    .frame(width: 40, height: 40)
+                    .background(RoundedRectangle(cornerRadius: 12).fill(Theme.yellow))
+                    .accessibilityHidden(true)
+                TileHeading(title: "Clicking a notification",
+                            subtitle: "Opens the app the session runs in. Some apps let OpusBar go on to its tab or window.")
+            }
+            .padding(.vertical, 8)
+            Divider().opacity(0.5)
+            reachRow("Bring the session's app forward", "Any terminal, editor or desktop app.") { reachState("Always works", ok: true) }
+            Divider().opacity(0.5)
+            reachRow("Pick the tab in Orca and tmux", nil) { reachState("No permission needed", ok: true) }
+            Divider().opacity(0.5)
+            reachRow("Pick the tab in Terminal", "Uses Automation for Terminal.") { terminalState }
+            Divider().opacity(0.5)
+            reachRow("Pick the window in other apps", "Uses Accessibility to read window titles.") { accessibilityState }
+        }
+    }
+
+    @ViewBuilder private var terminalState: some View {
+        switch permissions.terminalAutomation {
+        case .granted: reachState("Allowed", ok: true)
+        case .appNotRunning: reachState("macOS asks on the first click", ok: false)
+        case .notGranted:
+            Button(permissions.asking ? "Asking…" : "Allow") { permissions.requestTerminalAutomation() }
+                .disabled(permissions.asking)
+        case .denied: Button("Open System Settings") { permissions.openAutomationSettings() }
+        }
+    }
+
+    @ViewBuilder private var accessibilityState: some View {
+        if permissions.accessibility == .granted {
+            reachState("Allowed", ok: true)
+        } else {
+            Button("Allow") { permissions.requestAccessibility() }
+        }
+    }
+
+    private func reachState(_ text: String, ok: Bool) -> some View {
+        Label(text, systemImage: ok ? "checkmark.circle.fill" : "clock")
+            .font(Theme.font(12, .medium)).foregroundStyle(ok ? Theme.green : .secondary)
+    }
+
+    private func reachRow(_ title: String, _ subtitle: String?, @ViewBuilder trailing: () -> some View) -> some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(title).font(Theme.font(13, .medium))
+                if let subtitle { Text(subtitle).font(Theme.font(11, .regular)).opacity(0.6) }
+            }
+            Spacer(minLength: 8)
+            trailing()
+        }
+        .padding(.vertical, 6)
+        .accessibilityElement(children: .combine)
     }
 
     private var anyLimitNotice: Bool { preferences.notifyLimitReset || preferences.notifyLimitWarning }
@@ -447,7 +513,7 @@ struct NotificationsPane: View {
             }
             .disabled(notifier.access == .unavailable || notifier.testState != .ready)
             .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: notifier.testState)
-            Text("Clicking a notification opens the OpusBar menu.").font(Theme.font(12, .regular)).opacity(0.5)
+            Text("Without a permission, a click still opens the right app.").font(Theme.font(12, .regular)).opacity(0.5)
         }
     }
 

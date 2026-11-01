@@ -8,7 +8,9 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIG="${CONFIG:-release}"
-VERSION="${VERSION:-0.1.0}"
+# Local builds default to a version above any release, so the auto-updater never swaps them out on quit.
+# release.sh always passes the real version.
+VERSION="${VERSION:-99.0.0}"
 BUILD_NUMBER="${BUILD_NUMBER:-1}"
 BUNDLE_ID="${BUNDLE_ID:-dev.opusbar.OpusBar}"
 APP="$ROOT/build/OpusBar.app"
@@ -71,13 +73,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>LSUIElement</key><true/>
   <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
   <key>NSHumanReadableCopyright</key><string>Copyright © 2026 OpusBar</string>
+  <key>NSAppleEventsUsageDescription</key><string>OpusBar selects the terminal tab a session runs in when you click its notification.</string>
 </dict>
 </plist>
 PLIST
 
 # Inner code first, then the app.
 codesign --force --sign - "$APP/Contents/Helpers/opusbar-hook"
-codesign --force --sign - "$APP"
+# Ad-hoc signing pins the designated requirement to this build's hash, so macOS would forget the
+# Automation grant at every update. Pinning it to the bundle id keeps the grant across builds (ADR 27).
+codesign --force --sign - --requirements "=designated => identifier \"$BUNDLE_ID\"" "$APP"
 codesign --verify --strict "$APP"
 
 echo "Built $APP ($CONFIG, $VERSION)"

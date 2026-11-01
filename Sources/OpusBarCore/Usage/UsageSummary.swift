@@ -43,6 +43,14 @@ public struct UsageShare: Equatable, Sendable, Identifiable {
     public var totals: UsageTotals
     /// An account row's folder (Claude profile, Codex home), so it can be named for how it pays.
     public var account: String?
+
+    public init(id: String, name: String, agent: AgentKind? = nil, totals: UsageTotals, account: String? = nil) {
+        self.id = id
+        self.name = name
+        self.agent = agent
+        self.totals = totals
+        self.account = account
+    }
 }
 
 /// One bar of the trend: a local calendar day, or an hour in the 24 h range.

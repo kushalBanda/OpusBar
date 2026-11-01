@@ -75,6 +75,14 @@ final class NotificationPlannerTests: XCTestCase {
         XCTAssertEqual(Set(plan.post.map(\.thread)), ["/Users/me/api-server"])
     }
 
+    func testBodyNamesTheHostAppAfterTheAgent() {
+        var hosted = session("a", .needsAttention, detail: "Allow Bash?")
+        hosted.host = SessionHost(appName: "Orca", appPath: "/Applications/Orca.app", tty: "ttys004")
+        hosted.title = "fix-login"
+        let plan = NotificationPlanner.plan(old: state(), new: state(hosted), rules: all)
+        XCTAssertEqual(plan.post.first?.body, "Claude Code · Orca · fix-login · Allow Bash?")
+    }
+
     func testLeavingNeedsYouClearsItsNotification() {
         let plan = NotificationPlanner.plan(old: state(session("a", .needsAttention)),
                                             new: state(session("a", .working)), rules: all)

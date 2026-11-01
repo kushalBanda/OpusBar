@@ -46,13 +46,24 @@ public struct SessionHost: Equatable, Sendable {
         var current = start.ppid
         for _ in 0..<maxDepth {
             guard current > 1, let process = processes[current] else { break }
-            if let bundle = outermostAppBundle(in: process.executablePath) {
+            if let found = outermostAppBundle(in: process.executablePath) {
+                let bundle = installedApp(for: found) ?? found
                 return SessionHost(appName: (bundle as NSString).lastPathComponent.replacingOccurrences(of: ".app", with: ""),
                                    appPath: bundle, tty: start.tty)
             }
             current = process.ppid
         }
         return start.tty.map { SessionHost(appName: nil, appPath: nil, tty: $0) }
+    }
+
+    /// A helper app kept in Application Support stands for the installed app with its bundle id. Orca runs
+    /// its terminals in "Orca Terminal Host.app" there, a child of launchd, so the walk never reaches Orca.app.
+    static func installedApp(for bundle: String) -> String? {
+        let support = "/Library/Application Support/"
+        guard bundle.contains(support), let id = Bundle(path: bundle)?.bundleIdentifier,
+              let urls = LSCopyApplicationURLsForBundleIdentifier(id as CFString, nil)?.takeRetainedValue() as? [URL]
+        else { return nil }
+        return urls.map(\.path).first { !$0.contains(support) }
     }
 
     static func outermostAppBundle(in path: String) -> String? {

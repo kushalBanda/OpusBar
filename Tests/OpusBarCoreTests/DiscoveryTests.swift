@@ -122,7 +122,8 @@ final class SessionDiscoveryTests: XCTestCase {
             AgentProcess(pid: 2, arguments: ["zsh"]),
             AgentProcess(pid: 3, arguments: ["codex"]),
         ], cwds: [1: "/p/api", 2: "/p/shell", 3: "/p/blog"])
-        let found = SessionDiscovery(lister: lister).scan().sorted { $0.pid < $1.pid }
+        // A home with no settings, so the Mac's own `permissions.defaultMode` can't leak in.
+        let found = SessionDiscovery(lister: lister, environment: ["HOME": "/nonexistent"]).scan().sorted { $0.pid < $1.pid }
         XCTAssertEqual(found, [
             DiscoveredProcess(pid: 1, agent: .claude, cwd: "/p/api", startedAt: nil),
             DiscoveredProcess(pid: 3, agent: .codex, cwd: "/p/blog", startedAt: nil),
