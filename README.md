@@ -40,15 +40,15 @@ OpusBar puts every running session in your menu bar. The cat takes on the state 
 | yawning | **stuck on an error** |
 | sitting | **idle** |
 
-A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat for the full list, sessions that need you on top. Each card shows the project, what it is doing and for how long, with the Claude or Codex logo as a badge on the cat. Tap a card for its folder, terminal, tokens and billing, and to open its folder, copy its path or bring its terminal forward.
+A badge on the cat counts the sessions waiting for you, or marks one that finished or failed. Click the cat and the menu opens on your plan limits and spend; the Sessions tab beside it lists every session, those that need you on top. Each card shows the project, what it is doing and for how long, with the Claude or Codex logo as a badge on the cat. Tap a card for its folder, terminal, tokens and billing, and to open its folder, copy its path or bring its terminal forward.
 
 <p align="center">
-  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: under Attention, payments-api needs you to allow Bash; under Active, design-system and search-service are done, infra and web-app are working and ml-pipeline is thinking. Each card shows its elapsed time and the agent's logo as a badge on the cat">
-  &nbsp;
   <img src="docs/assets/menu-usage.png" width="340" alt="The OpusBar menu, Usage tab: 5-hour and weekly limits side by side for two Claude Code profiles and Codex, each with when it renews, a Bedrock profile billed per use, then the API value">
+  &nbsp;
+  <img src="docs/assets/menu-sessions.png" width="340" alt="The OpusBar menu, Sessions tab: under Attention, payments-api needs you to allow Bash; under Active, design-system and search-service are done, infra and web-app are working and ml-pipeline is thinking. Each card shows its elapsed time and the agent's logo as a badge on the cat">
 </p>
 
-<p align="center"><sub>The menu: every session, and your limits and spend one tab over. Sample data.</sub></p>
+<p align="center"><sub>The menu: your limits and spend, and every session one tab over. Sample data.</sub></p>
 
 ## What it does
 
