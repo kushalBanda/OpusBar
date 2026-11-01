@@ -43,6 +43,8 @@ final class Updater {
         #if DEBUG
         // `--update-now`: check at once and install what's found, for the end-to-end update test.
         if ProcessInfo.processInfo.arguments.contains("--update-now") { check(thenInstall: true) }
+        // `--check-now`: check at once instead of a minute after launch, to see the update card.
+        if ProcessInfo.processInfo.arguments.contains("--check-now") { check() }
         #endif
     }
 
