@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.21
+
+- When a new version is out, a card at the top of the menu says so, with Update and Relaunch. Later hides it until the next version.
+- After an update, the card with what changed shows at the top of the menu, so it shows on Usage too.
+
 ## 0.1.20
 
 - The menu opens on the Usage tab, now first in the bar.
