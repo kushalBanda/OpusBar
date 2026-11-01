@@ -4,7 +4,7 @@ import SwiftUI
 
 /// Which half of the dropdown shows.
 enum DropdownTab: String, CaseIterable {
-    case sessions, usage
+    case usage, sessions
 
     var title: String {
         switch self {
@@ -23,6 +23,7 @@ struct UsageDropdownView: View {
     let remembered: [String: SignInMethod]
     let maxHeight: CGFloat
     @State private var range: UsageRange = .day
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         FittedScroll(maxHeight: maxHeight) {
@@ -50,19 +51,21 @@ struct UsageDropdownView: View {
             if !perUse.isEmpty { PerUseCard(accounts: perUse) }
             SegmentedPicker(options: UsageRange.allCases, selection: $range, size: 11) { $0.label }
                 .padding(.top, 4)
-            if let summary = usage.summaries[range] {
-                SpendCard(summary: summary)
-                if summary.hasSeveralAccounts {
-                    ShareCard(title: "Accounts", symbol: "person.2", shares: AccountSignIn.named(summary.byAccount, accounts: accounts, short: true),
-                              byCost: summary.total.cost > 0, limit: 6, marksAgent: true)
-                }
-                if summary.total.replies > 0 {
-                    HStack(alignment: .top, spacing: 8) {
-                        ShareCard(title: "Models", symbol: "cpu", shares: summary.byModel, byCost: summary.total.cost > 0)
-                        ShareCard(title: "Projects", symbol: "folder", shares: summary.byProject, byCost: summary.total.cost > 0)
+            if !usage.summaries.isEmpty {
+                // Every range stays laid out, one over the other, so the menu keeps the tallest one's height and
+                // a switch fades instead of resizing; the hidden ones take no clicks and are hidden from VoiceOver.
+                ZStack(alignment: .top) {
+                    ForEach(UsageRange.allCases, id: \.self) { option in
+                        if let summary = usage.summaries[option] {
+                            let shown = option == range
+                            cards(summary, accounts: accounts)
+                                .opacity(shown ? 1 : 0)
+                                .allowsHitTesting(shown)
+                                .accessibilityHidden(!shown)
+                        }
                     }
-                    .fixedSize(horizontal: false, vertical: true)
                 }
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: range)
             } else {
                 UsageCard {
                     HStack(spacing: 8) {
@@ -70,6 +73,24 @@ struct UsageDropdownView: View {
                         Text("Reading your logs…").font(Theme.font(12, .regular)).foregroundStyle(.secondary)
                     }
                 }
+            }
+        }
+    }
+
+    /// One range's spend, accounts, models and projects.
+    private func cards(_ summary: UsageSummary, accounts: [AccountSignIn]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SpendCard(summary: summary)
+            if summary.hasSeveralAccounts {
+                ShareCard(title: "Accounts", symbol: "person.2", shares: AccountSignIn.named(summary.byAccount, accounts: accounts, short: true),
+                          byCost: summary.total.cost > 0, limit: 6, marksAgent: true)
+            }
+            if summary.total.replies > 0 {
+                HStack(alignment: .top, spacing: 8) {
+                    ShareCard(title: "Models", symbol: "cpu", shares: summary.byModel, byCost: summary.total.cost > 0)
+                    ShareCard(title: "Projects", symbol: "folder", shares: summary.byProject, byCost: summary.total.cost > 0)
+                }
+                .fixedSize(horizontal: false, vertical: true)
             }
         }
     }
