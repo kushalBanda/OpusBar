@@ -1,3 +1,4 @@
+import Foundation
 import OpusBarWire
 import XCTest
 
@@ -12,6 +13,11 @@ final class WireEventTests: XCTestCase {
         let line = try event.encodedLine()
         XCTAssertEqual(line.last, 0x0A)
         XCTAssertEqual(try WireEvent.decode(line: line), event)
+    }
+
+    func testTermInfoFromAnOlderHookDecodesWithoutTheHandle() throws {
+        let term = try JSONDecoder().decode(TermInfo.self, from: Data(#"{"termProgram":"iTerm.app"}"#.utf8))
+        XCTAssertEqual(term, TermInfo(termProgram: "iTerm.app"))
     }
 
     func testSlimMapsFieldsFromHookPayload() throws {

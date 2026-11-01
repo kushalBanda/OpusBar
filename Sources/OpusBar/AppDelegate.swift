@@ -8,6 +8,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var server: SocketServer?
     private var statusItem: StatusItemController?
     private var discovery: DiscoveryScheduler?
+    private var scansOnEvents = false
     private var preferences: Preferences?
     private var store: SessionStore?
     private var notifier: SessionNotifier?
@@ -44,7 +45,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             NSLog("OpusBar event: %@ %@ %@ pid=%d tool=%@ type=%@", event.agent?.rawValue ?? "claude(default)", event.e.event.rawValue, event.e.sessionId,
                   event.pid ?? -1, event.e.toolName ?? "-", event.e.notificationType ?? "-")
             #endif
-            Task { @MainActor in store.apply(event) }
+            Task { @MainActor [weak self] in
+                store.apply(event)
+                // A new session gets its app from the next discovery pass; run it now, not up to 30 s later.
+                if self?.scansOnEvents == true, event.pid != nil, store.state.byId[event.e.sessionId]?.host == nil {
+                    self?.discovery?.scanNow()
+                }
+            }
         }
         #if DEBUG
         let listens = !DemoSessions.isOn
@@ -71,6 +78,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #endif
         if discovers { discovery.start() }
         self.discovery = discovery
+        scansOnEvents = discovers
         let hooks = AgentHooksModel(paths: paths, environment: environment)
         let usage = UsageModel(claudeRoots: { AgentHooksModel.claudeProjectRoots(environment: environment) },
                                codexHomes: { AgentHooksModel.codexHomes(environment: environment) },
@@ -80,9 +88,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         #else
         usage.start()
         #endif
+        let focus = FocusRunner(store: store, openMenu: { [weak self] in self?.statusItem?.showMenu() })
         let notifier = SessionNotifier(store: store, preferences: preferences,
                                        isMenuShown: { [weak self] in self?.statusItem?.isMenuShown ?? false },
-                                       openMenu: { [weak self] in self?.statusItem?.showMenu() })
+                                       openMenu: { [weak self] in self?.statusItem?.showMenu() },
+                                       focusSession: { await focus.focus(sessionId: $0) })
         self.notifier = notifier
         limitResets = LimitResetNotifier(usage: usage, preferences: preferences)
         let updater = Updater(preferences: preferences)
@@ -92,12 +102,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.settings = settings
         NSApp.mainMenu = Self.makeMainMenu()
         statusItem = StatusItemController(store: store, preferences: preferences, hooks: hooks,
-                                          usage: usage, updater: updater, settings: settings) {
+                                          usage: usage, updater: updater, settings: settings, focus: focus) {
             if discovers { discovery.scanNow() }
             usage.refresh()
             hooks.refresh() // the first-run card reflects hooks connected outside OpusBar too
         }
         #if DEBUG
+        // Host tests: runs a notice click's focus path for a session id, posted from a script.
+        DistributedNotificationCenter.default().addObserver(forName: .init("dev.opusbar.debug.focus"), object: nil,
+                                                            queue: .main) { note in
+            guard let id = note.object as? String else { return }
+            Task { @MainActor in await focus.focus(sessionId: id) }
+        }
         // `--settings <pane>` opens Settings on launch, for screenshots without UI scripting.
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--settings"), index + 1 < arguments.count {
@@ -160,6 +176,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Clicking the Dock icon (there while Settings is open) brings a minimized Settings window back.
     @MainActor
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        // A notice click also reopens the app; the click is for the session, not for Settings.
+        guard !SessionNotifier.clickedJustNow else { return false }
         settings?.show()
         return true
     }

@@ -64,7 +64,7 @@ public enum NotificationPlanner {
     }
 
     /// Reads like the card it came from: the project and what happened lead the title, the agent and
-    /// the detail follow in the body ("quant needs you" / "Claude Code · Allow Bash?"). The body always
+    /// the host app and the detail follow in the body ("quant needs you" / "Claude Code · Terminal · Allow Bash?"). The body always
     /// starts with the agent, so a project named like the app still reads as a session. Two lines, so the
     /// text is as tall as the app icon macOS centres beside it.
     static func notice(for session: Session, rules: NotificationRules) -> SessionNotice? {
@@ -76,8 +76,9 @@ public enum NotificationPlanner {
         case .done where rules.done: (title, detail) = ("\(name) is done", "Finished its turn")
         default: return nil
         }
-        // A session the user named: name it too, so the notice says which one.
-        let body = [session.agent.displayName, session.distinctTitle, detail].compactMap { $0 }.joined(separator: " · ")
+        // The host app says where the click goes; a session the user named is named too, so the notice says which one.
+        let body = [session.agent.displayName, session.host?.appName, session.distinctTitle, detail]
+            .compactMap { $0 }.joined(separator: " · ")
         return SessionNotice(sessionId: session.id, state: session.state, title: title, body: body,
                              thread: session.cwd.isEmpty ? session.id : session.cwd)
     }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.19
+
+- Click a session notice to go back to that session. OpusBar finds the app it runs in by itself, and the notice names it: "Claude Code · Orca · myproject".
+- In Orca, tmux and iTerm2 the click lands on the exact tab or pane. In Terminal and Ghostty 1.4 it does too, once you allow Automation for that app.
+- In any other app, OpusBar raises the window that shows the session's folder, once you allow Accessibility. VS Code, Cursor and other VS Code editors come forward on the right project even without it.
+- Without a permission, the click still brings the right app forward. Settings › Notifications shows what each permission adds. The "Show in" button on a session card does the same as a click.
+
 ## 0.1.18
 
 - Usage prices Claude Haiku 5.5 replies, including its higher rates for prompts over 100,000 tokens. They used to show as replies without a known price.

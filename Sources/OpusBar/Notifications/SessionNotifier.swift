@@ -21,6 +21,14 @@ final class SessionNotifier: NSObject {
 
     nonisolated static let log = Logger(subsystem: Bundle.main.bundleIdentifier ?? "OpusBar", category: "notifications")
 
+    /// When the user last clicked a notice. macOS brings OpusBar forward for the click, which arrives as
+    /// a reopen; the app delegate skips Settings for that one, so only the session comes forward.
+    nonisolated private static let lastClick = OSAllocatedUnfairLock<Date?>(initialState: nil)
+
+    nonisolated static var clickedJustNow: Bool {
+        lastClick.withLock { $0.map { Date().timeIntervalSince($0) < 2 } ?? false }
+    }
+
     /// The Settings test button: one test at a time, then a short "Sent" before it can go again.
     enum TestState: Equatable {
         case ready, sending, sent
@@ -34,17 +42,21 @@ final class SessionNotifier: NSObject {
     /// While the dropdown is open the user already sees every card; posting then is noise.
     @ObservationIgnored private let isMenuShown: () -> Bool
     @ObservationIgnored private let openMenu: () -> Void
+    /// A click on a session's notice: brings that session forward (`FocusRunner.focus(sessionId:)`).
+    @ObservationIgnored private let focusSession: (String) async -> Void
     @ObservationIgnored private var last = SessionsState()
 
     private var center: UNUserNotificationCenter? {
         Bundle.main.bundleIdentifier == nil ? nil : UNUserNotificationCenter.current()
     }
 
-    init(store: SessionStore, preferences: Preferences, isMenuShown: @escaping () -> Bool, openMenu: @escaping () -> Void) {
+    init(store: SessionStore, preferences: Preferences, isMenuShown: @escaping () -> Bool, openMenu: @escaping () -> Void,
+         focusSession: @escaping (String) async -> Void) {
         self.store = store
         self.preferences = preferences
         self.isMenuShown = isMenuShown
         self.openMenu = openMenu
+        self.focusSession = focusSession
         super.init()
         last = store.state
         center?.delegate = self
@@ -183,12 +195,17 @@ extension SessionNotifier: UNUserNotificationCenterDelegate {
         completionHandler([.banner, .sound])
     }
 
-    /// Clicking a notification opens the dropdown.
+    /// Clicking a notification brings its session forward. The test notice, and a session that is gone,
+    /// open the dropdown.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
+        let identifier = response.notification.request.identifier
+        Self.lastClick.withLock { $0 = Date() }
         Task { @MainActor in
-            self.openMenu()
             completionHandler()
+            let prefix = "session."
+            guard identifier.hasPrefix(prefix), identifier != Self.identifier("test") else { self.openMenu(); return }
+            await self.focusSession(String(identifier.dropFirst(prefix.count)))
         }
     }
 }

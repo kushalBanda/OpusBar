@@ -156,6 +156,8 @@ private struct SessionDetails: View {
     var billing: SignInMethod?
     var usage: UsageTotals?
 
+    @Environment(\.showSession) private var showSession
+
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 5) {
@@ -177,10 +179,8 @@ private struct SessionDetails: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             HStack(spacing: 6) {
-                if let app = session.host?.appPath {
-                    action("Show in \(session.host?.appName ?? "app")", "macwindow") {
-                        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: app), configuration: .init())
-                    }
+                if session.host?.appPath != nil {
+                    action("Show in \(session.host?.appName ?? "app")", "macwindow") { showSession(session) }
                 }
                 action("Open folder", "folder") {
                     NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: session.cwd)])

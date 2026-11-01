@@ -12,6 +12,8 @@ struct SessionListView: View {
     let updater: Updater
     let layout: PopoverLayout
     var openSettings: (SettingsPane?) -> Void = { _ in }
+    /// A row's "Show in" button: brings that session forward.
+    var showSession: @MainActor (Session) -> Void = { _ in }
     /// The content's height changed: the menu hosting it refits.
     var onHeightChange: () -> Void = {}
     /// One card open at a time; the others stay compact.
@@ -120,6 +122,7 @@ struct SessionListView: View {
         .environment(\.catAnimates, preferences.animateCat)
         .environment(\.catCoat, preferences.coat)
         .environment(\.catPoses, preferences.poses)
+        .environment(\.showSession, showSession)
     }
 
     /// One tab's content: shown when chosen, else invisible but still laid out.

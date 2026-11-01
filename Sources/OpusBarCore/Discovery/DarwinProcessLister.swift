@@ -74,9 +74,22 @@ public struct DarwinProcessLister: ProcessListing {
     static func bsdInfo(pid: Int32) -> (ppid: Int32, startedAt: Date, tty: String?)? {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
-        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return kernInfo(pid: pid) }
         let start = TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000
         return (Int32(bitPattern: info.pbi_ppid), Date(timeIntervalSince1970: start), ttyName(info.e_tdev))
+    }
+
+    /// `proc_pidinfo` refuses another user's process (EPERM). Terminals start the shell through
+    /// `/usr/bin/login`, which runs as root, so without this the walk from a session to its app stops there.
+    /// `sysctl` answers for any process, as `ps` does.
+    static func kernInfo(pid: Int32) -> (ppid: Int32, startedAt: Date, tty: String?)? {
+        var proc = kinfo_proc()
+        var length = MemoryLayout<kinfo_proc>.stride
+        var mib: [Int32] = [CTL_KERN, KERN_PROC, KERN_PROC_PID, pid]
+        guard sysctl(&mib, 4, &proc, &length, nil, 0) == 0, length > 0 else { return nil }
+        let started = proc.kp_proc.p_un.__p_starttime
+        let start = TimeInterval(started.tv_sec) + TimeInterval(started.tv_usec) / 1_000_000
+        return (proc.kp_eproc.e_ppid, Date(timeIntervalSince1970: start), ttyName(UInt32(bitPattern: proc.kp_eproc.e_tdev)))
     }
 
     /// `e_tdev` is NODEV (all ones) when there's no controlling terminal.

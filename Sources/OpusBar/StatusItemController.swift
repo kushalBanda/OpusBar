@@ -33,7 +33,8 @@ final class StatusItemController: NSObject {
     private var imageCache: [String: NSImage] = [:]
 
     init(store: SessionStore, preferences: Preferences, hooks: AgentHooksModel,
-         usage: UsageModel, updater: Updater, settings: SettingsWindowController, onOpen: @escaping () -> Void = {}) {
+         usage: UsageModel, updater: Updater, settings: SettingsWindowController, focus: FocusRunner,
+         onOpen: @escaping () -> Void = {}) {
         self.store = store
         self.preferences = preferences
         self.settings = settings
@@ -44,6 +45,9 @@ final class StatusItemController: NSObject {
                                                            openSettings: { [weak self] pane in
             self?.menu.cancelTracking()
             self?.settings.show(pane)
+        }, showSession: { [weak self] session in
+            self?.menu.cancelTracking()
+            Task { await focus.focus(session) }
         }, onHeightChange: { [weak self] in self?.content.contentChanged() }))
         content.fit()
         let item = NSMenuItem()

@@ -1,3 +1,4 @@
+import Foundation
 @testable import OpusBarCore
 import XCTest
 
@@ -47,5 +48,14 @@ final class SessionHostTests: XCTestCase {
     func testNoTerminalDeviceMeansNoTty() {
         XCTAssertNil(DarwinProcessLister.ttyName(UInt32.max))
         XCTAssertNil(DarwinProcessLister.ttyName(0))
+    }
+
+    /// launchd runs as root, like `/usr/bin/login` between a terminal and its shell. `proc_pidinfo` refuses
+    /// it for a normal user; the lister must still read its parent, or the walk to the app stops there.
+    func testRootProcessesAreStillListed() throws {
+        XCTAssertTrue(getuid() != 0, "run as a normal user")
+        let launchd = try XCTUnwrap(DarwinProcessLister.bsdInfo(pid: 1))
+        XCTAssertEqual(launchd.ppid, 0)
+        XCTAssertTrue(DarwinProcessLister().processes().contains { $0.pid == 1 })
     }
 }
